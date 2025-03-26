@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  CREATOR
+  ADMIN
+}
+
+enum ContentType {
+  FILM
+  SERIE
+}
+
+model User {
+  id          String        @id @default(uuid())
+  email       String        @unique
+  password    String
+  role        Role          @default(USER)
+  isVerified  Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  contents    Content[]
+  transactions Transaction[]
+}
+
+model Content {
+  id          String      @id @default(uuid())
+  title       String
+  type        ContentType
+  price       Float?
+  thumbnail   String
+  description String
+  creator     User        @relation(fields: [creatorId], references: [id])
+  creatorId   String
+  isApproved  Boolean     @default(false)
+  rejectionReason String?
+  film        Film?
+  serie       Serie?
+  transactions Transaction[]
+}
+
+model Film {
+  id        String   @id @default(uuid())
+  duration  Int
+  videoPath String
+  content   Content  @relation(fields: [contentId], references: [id])
+  contentId String   @unique
+}
+
+model Serie {
+  id        String   @id @default(uuid())
+  seasons   Season[]
+  content   Content  @relation(fields: [contentId], references: [id])
+  contentId String   @unique
+}
+
+model Season {
+  id       String   @id @default(uuid())
+  number   Int
+  episodes Episode[]
+  serie    Serie    @relation(fields: [serieId], references: [id])
+  serieId  String
+}
+
+model Episode {
+  id         String   @id @default(uuid())
+  title      String
+  duration   Int
+  videoPath  String
+  season     Season   @relation(fields: [seasonId], references: [id])
+  seasonId   String
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  content   Content  @relation(fields: [contentId], references: [id])
+  contentId String
+  amount    Float
+  isPaid    Boolean  @default(true)
+  createdAt DateTime @default(now())
+} 
