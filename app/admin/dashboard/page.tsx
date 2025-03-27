@@ -8,7 +8,6 @@ import {
   Flex,
   Heading,
   Text,
-  useColorModeValue,
   SimpleGrid,
   Stat,
   StatLabel,
@@ -26,15 +25,13 @@ import {
   Td,
   TableContainer,
   Badge,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Button,
 } from "@chakra-ui/react";
-import {
-  FiUsers,
-  FiVideo,
-  FiDollarSign,
-  FiTrendingUp,
-  FiClock,
-} from "react-icons/fi";
-import { useAdminDashboard } from "../../hooks/useAdminApi";
+import { FiUsers, FiVideo, FiDollarSign, FiRefreshCw } from "react-icons/fi";
 
 // Types pour les données du tableau de bord
 interface Transaction {
@@ -87,14 +84,45 @@ export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const {
-    data: dashboardData,
-    loading: dashboardLoading,
-    error: dashboardError,
-  } = useAdminDashboard<DashboardData>();
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
+    null
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Rediriger si l'utilisateur n'est pas connecté ou n'est pas admin
+  // Fonction pour charger les données du tableau de bord
+  const fetchDashboardData = async () => {
+    try {
+      setIsRefreshing(true);
+
+      const response = await fetch("/api/admin/dashboard");
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erreur ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Données du tableau de bord reçues:", data);
+
+      // Vérification des propriétés requises
+      if (!data.users || !data.creators || !data.contents || !data.sales) {
+        throw new Error("Format de données incorrect reçu de l'API");
+      }
+
+      setDashboardData(data);
+      setError(null);
+    } catch (err) {
+      console.error("Erreur lors du chargement du tableau de bord:", err);
+      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Vérifier l'authentification et charger les données
   useEffect(() => {
+    // Vérifier d'abord l'authentification
     if (status === "loading") return;
 
     if (!session) {
@@ -107,10 +135,39 @@ export default function AdminDashboard() {
       return;
     }
 
-    setLoading(false);
+    // Une fois authentifié, charger les données
+    fetchDashboardData().finally(() => {
+      setLoading(false);
+    });
   }, [session, status, router]);
 
-  if (loading || dashboardLoading) {
+  // Formatter les valeurs monétaires
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+    }).format(value || 0);
+  };
+
+  // Formatter les dates
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+    } catch (error) {
+      console.error("Erreur de formatage de date:", error);
+      return "Date invalide";
+    }
+  };
+
+  // Afficher le spinner pendant le chargement initial
+  if (loading) {
     return (
       <Flex justify="center" align="center" minH="100vh">
         <Spinner size="xl" color="red.500" />
@@ -118,42 +175,65 @@ export default function AdminDashboard() {
     );
   }
 
-  if (dashboardError) {
+  // Afficher l'erreur si présente
+  if (error) {
     return (
-      <Box p={4} borderRadius="md" bg="red.500" color="white">
-        <Text>Une erreur est survenue lors du chargement des données</Text>
+      <Box p={8}>
+        <Alert status="error" variant="solid" borderRadius="md" mb={6}>
+          <AlertIcon />
+          <AlertTitle mr={2}>Erreur!</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button
+          leftIcon={<FiRefreshCw />}
+          onClick={fetchDashboardData}
+          colorScheme="red"
+        >
+          Réessayer
+        </Button>
       </Box>
     );
   }
 
-  // S'assurer que dashboardData est traité comme DashboardData
-  const data = dashboardData as DashboardData;
-
-  // Formatter les valeurs monétaires
-  const formatCurrency = (value: number): string => {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "EUR",
-    }).format(value);
-  };
-
-  // Formatter les dates
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
-  };
+  // Si les données ne sont pas disponibles (cas improbable après vérification)
+  if (!dashboardData) {
+    return (
+      <Box p={8}>
+        <Alert status="warning" variant="solid" borderRadius="md">
+          <AlertIcon />
+          <AlertTitle mr={2}>Attention!</AlertTitle>
+          <AlertDescription>
+            Aucune donnée disponible pour le tableau de bord
+          </AlertDescription>
+        </Alert>
+        <Button
+          mt={4}
+          leftIcon={<FiRefreshCw />}
+          onClick={fetchDashboardData}
+          colorScheme="blue"
+        >
+          Actualiser
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box p={4}>
-      <Heading as="h1" color="white" mb={6}>
-        Tableau de bord
-      </Heading>
+      <Flex justify="space-between" align="center" mb={6}>
+        <Heading as="h1" color="white">
+          Tableau de bord
+        </Heading>
+        <Button
+          leftIcon={<FiRefreshCw />}
+          onClick={fetchDashboardData}
+          isLoading={isRefreshing}
+          size="sm"
+          colorScheme="blue"
+        >
+          Actualiser
+        </Button>
+      </Flex>
 
       <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
         {/* Carte Utilisateurs */}
@@ -166,7 +246,7 @@ export default function AdminDashboard() {
               <Stat>
                 <StatLabel color="gray.400">Utilisateurs</StatLabel>
                 <StatNumber color="white" fontSize="2xl">
-                  {data?.users?.total || 0}
+                  {dashboardData.users?.total || 0}
                 </StatNumber>
                 <StatHelpText color="gray.400">
                   Utilisateurs inscrits
@@ -186,7 +266,7 @@ export default function AdminDashboard() {
               <Stat>
                 <StatLabel color="gray.400">Créateurs</StatLabel>
                 <StatNumber color="white" fontSize="2xl">
-                  {data?.creators?.total || 0}
+                  {dashboardData.creators?.total || 0}
                 </StatNumber>
                 <StatHelpText color="gray.400">Créateurs actifs</StatHelpText>
               </Stat>
@@ -204,10 +284,10 @@ export default function AdminDashboard() {
               <Stat>
                 <StatLabel color="gray.400">Contenus</StatLabel>
                 <StatNumber color="white" fontSize="2xl">
-                  {data?.contents?.total || 0}
+                  {dashboardData.contents?.total || 0}
                 </StatNumber>
                 <StatHelpText color="gray.400">
-                  {data?.contents?.pending || 0} en attente
+                  {dashboardData.contents?.pending || 0} en attente
                 </StatHelpText>
               </Stat>
             </Flex>
@@ -224,7 +304,7 @@ export default function AdminDashboard() {
               <Stat>
                 <StatLabel color="gray.400">Chiffre d'affaires</StatLabel>
                 <StatNumber color="white" fontSize="2xl">
-                  {formatCurrency(data?.sales?.total || 0)}
+                  {formatCurrency(dashboardData.sales?.total || 0)}
                 </StatNumber>
                 <StatHelpText color="gray.400">Total des ventes</StatHelpText>
               </Stat>
@@ -250,11 +330,18 @@ export default function AdminDashboard() {
                 </Tr>
               </Thead>
               <Tbody>
-                {data?.recentTransactions?.length > 0 ? (
-                  data.recentTransactions.map((transaction) => (
+                {dashboardData.recentTransactions &&
+                dashboardData.recentTransactions.length > 0 ? (
+                  dashboardData.recentTransactions.map((transaction) => (
                     <Tr key={transaction.id}>
-                      <Td color="gray.300">{transaction.user.email}</Td>
-                      <Td color="gray.300">{transaction.content.title}</Td>
+                      <Td color="gray.300">
+                        {transaction.user?.name ||
+                          transaction.user?.email ||
+                          "Utilisateur inconnu"}
+                      </Td>
+                      <Td color="gray.300">
+                        {transaction.content?.title || "Contenu inconnu"}
+                      </Td>
                       <Td color="gray.300">
                         {formatCurrency(transaction.amount)}
                       </Td>
@@ -265,7 +352,7 @@ export default function AdminDashboard() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={4} textAlign="center" color="gray.300">
+                    <Td colSpan={4} textAlign="center" color="gray.500">
                       Aucune transaction récente
                     </Td>
                   </Tr>
@@ -278,7 +365,7 @@ export default function AdminDashboard() {
 
       {/* Section Contenus récents */}
       <Heading as="h2" size="md" color="white" mb={4}>
-        Contenus récemment ajoutés
+        Contenus récents
       </Heading>
       <Card bg="gray.800" borderColor="gray.700" borderWidth="1px">
         <CardBody>
@@ -287,22 +374,29 @@ export default function AdminDashboard() {
               <Thead>
                 <Tr>
                   <Th color="gray.400">Titre</Th>
-                  <Th color="gray.400">Créateur</Th>
                   <Th color="gray.400">Type</Th>
+                  <Th color="gray.400">Créateur</Th>
                   <Th color="gray.400">Statut</Th>
                   <Th color="gray.400">Date</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {data?.recentContents?.length > 0 ? (
-                  data.recentContents.map((content) => (
+                {dashboardData.recentContents &&
+                dashboardData.recentContents.length > 0 ? (
+                  dashboardData.recentContents.map((content) => (
                     <Tr key={content.id}>
                       <Td color="gray.300">{content.title}</Td>
-                      <Td color="gray.300">{content.creator.email}</Td>
-                      <Td color="gray.300">{content.type}</Td>
+                      <Td color="gray.300">
+                        {content.type === "FILM" ? "Film" : "Série"}
+                      </Td>
+                      <Td color="gray.300">
+                        {content.creator?.name ||
+                          content.creator?.email ||
+                          "Créateur inconnu"}
+                      </Td>
                       <Td>
                         <Badge
-                          colorScheme={content.isApproved ? "green" : "yellow"}
+                          colorScheme={content.isApproved ? "green" : "orange"}
                         >
                           {content.isApproved ? "Approuvé" : "En attente"}
                         </Badge>
@@ -312,7 +406,7 @@ export default function AdminDashboard() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={5} textAlign="center" color="gray.300">
+                    <Td colSpan={5} textAlign="center" color="gray.500">
                       Aucun contenu récent
                     </Td>
                   </Tr>
