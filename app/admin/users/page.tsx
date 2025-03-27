@@ -12,7 +12,6 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 
-import AdminSidebar from "../../components/admin/AdminSidebar";
 import AdminUsersTable from "../../components/admin/AdminUsersTable";
 
 export default function AdminUsersPage() {
@@ -46,11 +45,9 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <Flex minH="100vh" bg={useColorModeValue("gray.900", "gray.900")}>
-      <AdminSidebar />
-
-      <Box flex="1" ml={{ base: 0, md: 60 }} p="4">
-        <Heading as="h1" mb={6} color="white">
+    <>
+      <Box p="4">
+        <Heading as="h1" color="white" mb={6}>
           Gestion des utilisateurs
         </Heading>
 
@@ -62,6 +59,6 @@ export default function AdminUsersPage() {
 
         <AdminUsersTable />
       </Box>
-    </Flex>
+    </>
   );
 }

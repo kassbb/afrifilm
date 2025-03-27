@@ -12,10 +12,10 @@ import {
   useColorModeValue,
   Button,
   HStack,
+  Container,
 } from "@chakra-ui/react";
 import { FiPlus } from "react-icons/fi";
 
-import AdminSidebar from "../../components/admin/AdminSidebar";
 import AdminContentsTable from "../../components/admin/AdminContentsTable";
 
 export default function AdminContentsPage() {
@@ -49,10 +49,8 @@ export default function AdminContentsPage() {
   }
 
   return (
-    <Flex minH="100vh" bg={useColorModeValue("gray.900", "gray.900")}>
-      <AdminSidebar />
-
-      <Box flex="1" ml={{ base: 0, md: 60 }} p="4">
+    <>
+      <Box p="4">
         <Flex justify="space-between" align="center" mb={6}>
           <Heading as="h1" color="white">
             Gestion des contenus
@@ -76,6 +74,6 @@ export default function AdminContentsPage() {
 
         <AdminContentsTable />
       </Box>
-    </Flex>
+    </>
   );
 }

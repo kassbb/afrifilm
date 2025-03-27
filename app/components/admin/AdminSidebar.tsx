@@ -18,6 +18,8 @@ import {
   Image,
   Avatar,
   AvatarBadge,
+  Collapse,
+  createIcon,
 } from "@chakra-ui/react";
 import {
   FiHome,
@@ -29,10 +31,42 @@ import {
   FiDollarSign,
   FiHelpCircle,
   FiChevronRight,
+  FiChevronLeft,
+  FiChevronsLeft,
+  FiChevronsRight,
 } from "react-icons/fi";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { createContext, useContext, useState } from "react";
+
+// Contexte pour l'état de la barre latérale
+interface SidebarContextType {
+  isCollapsed: boolean;
+  toggleSidebar: () => void;
+}
+
+const SidebarContext = createContext<SidebarContextType>({
+  isCollapsed: false,
+  toggleSidebar: () => {},
+});
+
+export const useSidebar = () => useContext(SidebarContext);
+
+export const SidebarProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const toggleSidebar = () => setIsCollapsed(!isCollapsed);
+
+  return (
+    <SidebarContext.Provider value={{ isCollapsed, toggleSidebar }}>
+      {children}
+    </SidebarContext.Provider>
+  );
+};
 
 interface NavItemProps {
   icon: any;
@@ -40,9 +74,17 @@ interface NavItemProps {
   path: string;
   active?: boolean;
   onClick?: () => void;
+  isCollapsed?: boolean;
 }
 
-const NavItem = ({ icon, children, path, active, onClick }: NavItemProps) => {
+const NavItem = ({
+  icon,
+  children,
+  path,
+  active,
+  onClick,
+  isCollapsed,
+}: NavItemProps) => {
   const activeBg = useColorModeValue("red.600", "red.500");
   const inactiveBg = useColorModeValue("transparent", "transparent");
   const activeColor = useColorModeValue("white", "white");
@@ -55,13 +97,13 @@ const NavItem = ({ icon, children, path, active, onClick }: NavItemProps) => {
       placement="right"
       hasArrow
       openDelay={500}
-      display={{ base: "none", md: "block" }}
+      isDisabled={!isCollapsed}
     >
       <Link href={path} passHref style={{ width: "100%" }}>
         <Flex
           align="center"
           p="4"
-          mx="4"
+          mx={isCollapsed ? "2" : "4"}
           mb="1"
           borderRadius="lg"
           role="group"
@@ -78,18 +120,28 @@ const NavItem = ({ icon, children, path, active, onClick }: NavItemProps) => {
           transition="all 0.2s ease"
           onClick={onClick}
           position="relative"
+          justifyContent={isCollapsed ? "center" : "flex-start"}
         >
           <Icon
-            mr="4"
+            mr={isCollapsed ? "0" : "4"}
             fontSize="18"
             _groupHover={{
               color: "white",
             }}
             as={icon}
           />
-          {children}
-          {active && (
-            <Icon as={FiChevronRight} ml="auto" fontSize="14" opacity="0.7" />
+          {!isCollapsed && (
+            <>
+              {children}
+              {active && (
+                <Icon
+                  as={FiChevronRight}
+                  ml="auto"
+                  fontSize="14"
+                  opacity="0.7"
+                />
+              )}
+            </>
           )}
         </Flex>
       </Link>
@@ -97,10 +149,12 @@ const NavItem = ({ icon, children, path, active, onClick }: NavItemProps) => {
   );
 };
 
-export default function AdminSidebar() {
+// Composant principal de la barre latérale
+export function AdminSidebar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isCollapsed, toggleSidebar } = useSidebar();
 
   const bgColor = useColorModeValue("gray.800", "gray.800");
   const borderColor = useColorModeValue("gray.700", "gray.700");
@@ -115,32 +169,59 @@ export default function AdminSidebar() {
       bg={bgColor}
       borderRight="1px"
       borderRightColor={borderColor}
-      w={{ base: "full", md: 64 }}
+      w={isCollapsed ? { base: "full", md: "20" } : { base: "full", md: 64 }}
       pos="fixed"
       h="full"
       color="white"
       boxShadow="0 4px 12px 0 rgba(0,0,0,0.2)"
+      transition="all 0.3s ease"
+      zIndex="10"
     >
-      <Flex h="20" alignItems="center" mx="8" justifyContent="space-between">
-        <Flex alignItems="center">
+      <Flex
+        h="20"
+        alignItems="center"
+        mx={isCollapsed ? "3" : "8"}
+        justifyContent="space-between"
+      >
+        {!isCollapsed ? (
+          <Flex alignItems="center">
+            <Text
+              fontSize="2xl"
+              fontWeight="bold"
+              color={logoColor}
+              letterSpacing="tight"
+            >
+              AfriFilm
+              <Box as="span" color="white">
+                {" "}
+                Admin
+              </Box>
+            </Text>
+          </Flex>
+        ) : (
           <Text
             fontSize="2xl"
             fontWeight="bold"
             color={logoColor}
             letterSpacing="tight"
           >
-            AfriFilm
-            <Box as="span" color="white">
-              {" "}
-              Admin
-            </Box>
+            AF
           </Text>
-        </Flex>
+        )}
+        <IconButton
+          aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          icon={isCollapsed ? <FiChevronsRight /> : <FiChevronsLeft />}
+          onClick={toggleSidebar}
+          size="sm"
+          variant="ghost"
+          colorScheme="gray"
+          display={{ base: "none", md: "flex" }}
+        />
         <CloseButton display={{ base: "flex", md: "none" }} onClick={onClose} />
       </Flex>
 
       {/* Profil administrateur */}
-      {session && (
+      {session && !isCollapsed && (
         <Flex
           direction="column"
           alignItems="center"
@@ -172,11 +253,20 @@ export default function AdminSidebar() {
         </Flex>
       )}
 
+      {session && isCollapsed && (
+        <Flex justifyContent="center" my={6}>
+          <Avatar size="sm" name={session.user?.name || session.user?.email}>
+            <AvatarBadge boxSize="0.8em" bg="green.500" />
+          </Avatar>
+        </Flex>
+      )}
+
       <VStack spacing={2} align="stretch" mt={2}>
         <NavItem
           icon={FiHome}
           path="/admin/dashboard"
           active={pathname === "/admin/dashboard"}
+          isCollapsed={isCollapsed}
         >
           Tableau de bord
         </NavItem>
@@ -184,6 +274,7 @@ export default function AdminSidebar() {
           icon={FiVideo}
           path="/admin/contents"
           active={pathname === "/admin/contents"}
+          isCollapsed={isCollapsed}
         >
           Contenus
         </NavItem>
@@ -191,6 +282,7 @@ export default function AdminSidebar() {
           icon={FiUsers}
           path="/admin/creators"
           active={pathname === "/admin/creators"}
+          isCollapsed={isCollapsed}
         >
           Créateurs
         </NavItem>
@@ -198,6 +290,7 @@ export default function AdminSidebar() {
           icon={FiUsers}
           path="/admin/users"
           active={pathname === "/admin/users"}
+          isCollapsed={isCollapsed}
         >
           Utilisateurs
         </NavItem>
@@ -205,6 +298,7 @@ export default function AdminSidebar() {
           icon={FiDollarSign}
           path="/admin/transactions"
           active={pathname === "/admin/transactions"}
+          isCollapsed={isCollapsed}
         >
           Transactions
         </NavItem>
@@ -215,6 +309,7 @@ export default function AdminSidebar() {
           icon={FiSettings}
           path="/admin/settings"
           active={pathname === "/admin/settings"}
+          isCollapsed={isCollapsed}
         >
           Paramètres
         </NavItem>
@@ -222,29 +317,48 @@ export default function AdminSidebar() {
           icon={FiHelpCircle}
           path="/admin/help"
           active={pathname === "/admin/help"}
+          isCollapsed={isCollapsed}
         >
           Aide
         </NavItem>
 
-        <Box px={4} mt={8}>
-          <Button
-            leftIcon={<FiLogOut />}
-            variant="outline"
-            colorScheme="red"
-            width="full"
-            size="md"
-            borderRadius="lg"
-            onClick={handleSignOut}
-            transition="all 0.2s"
-            _hover={{
-              bg: "red.600",
-              color: "white",
-              borderColor: "red.600",
-            }}
-          >
-            Déconnexion
-          </Button>
-        </Box>
+        {!isCollapsed && (
+          <Box px={4} mt={8}>
+            <Button
+              leftIcon={<FiLogOut />}
+              variant="outline"
+              colorScheme="red"
+              width="full"
+              size="md"
+              borderRadius="lg"
+              onClick={handleSignOut}
+              transition="all 0.2s"
+              _hover={{
+                bg: "red.600",
+                color: "white",
+                borderColor: "red.600",
+              }}
+            >
+              Déconnexion
+            </Button>
+          </Box>
+        )}
+
+        {isCollapsed && (
+          <Box mt={8} display="flex" justifyContent="center">
+            <Tooltip label="Déconnexion" placement="right" hasArrow>
+              <IconButton
+                aria-label="Déconnexion"
+                icon={<FiLogOut />}
+                colorScheme="red"
+                variant="outline"
+                size="md"
+                borderRadius="lg"
+                onClick={handleSignOut}
+              />
+            </Tooltip>
+          </Box>
+        )}
       </VStack>
     </Box>
   );
@@ -287,3 +401,6 @@ export default function AdminSidebar() {
     </Box>
   );
 }
+
+// Exportation par défaut pour la compatibilité avec l'import dynamique
+export default AdminSidebar;

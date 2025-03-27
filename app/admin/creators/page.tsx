@@ -11,15 +11,11 @@ import {
   Text,
   useColorModeValue,
   Button,
-  Alert,
-  AlertIcon,
-  AlertTitle,
-  AlertDescription,
-  Stack,
+  HStack,
+  Icon,
 } from "@chakra-ui/react";
 import { FiMail } from "react-icons/fi";
 
-import AdminSidebar from "../../components/admin/AdminSidebar";
 import AdminCreatorsTable from "../../components/admin/AdminCreatorsTable";
 
 export default function AdminCreatorsPage() {
@@ -53,49 +49,31 @@ export default function AdminCreatorsPage() {
   }
 
   return (
-    <Flex minH="100vh" bg={useColorModeValue("gray.900", "gray.900")}>
-      <AdminSidebar />
-
-      <Box flex="1" ml={{ base: 0, md: 60 }} p="4">
+    <>
+      <Box p="4">
         <Flex justify="space-between" align="center" mb={6}>
           <Heading as="h1" color="white">
             Gestion des créateurs
           </Heading>
 
           <Button
-            leftIcon={<FiMail />}
-            colorScheme="blue"
+            leftIcon={<Icon as={FiMail} />}
+            colorScheme="red"
             size="sm"
-            variant="outline"
+            onClick={() => router.push("/admin/creators/invite")}
           >
-            Contacter tous les créateurs
+            Inviter un créateur
           </Button>
         </Flex>
 
-        <Stack spacing={6} mb={6}>
-          <Text color="gray.400">
-            Gérez les comptes créateurs de la plateforme. Vous pouvez vérifier
-            les comptes des nouveaux créateurs, consulter leurs statistiques et
-            gérer leurs droits.
-          </Text>
-
-          <Alert status="info" borderRadius="md" bg="blue.900" color="white">
-            <AlertIcon color="blue.200" />
-            <Box>
-              <AlertTitle fontWeight="bold">
-                Nouvelles demandes de vérification
-              </AlertTitle>
-              <AlertDescription>
-                Il y a actuellement 3 créateurs en attente de vérification.
-                Vérifiez leur identité et leurs documents avant d'approuver leur
-                compte.
-              </AlertDescription>
-            </Box>
-          </Alert>
-        </Stack>
+        <Text color="gray.400" mb={6}>
+          Gérez tous les créateurs de la plateforme. Vous pouvez approuver ou
+          rejeter les demandes de créateurs, modifier les informations ou
+          supprimer des comptes.
+        </Text>
 
         <AdminCreatorsTable />
       </Box>
-    </Flex>
+    </>
   );
 }

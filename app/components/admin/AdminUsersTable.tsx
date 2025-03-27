@@ -88,79 +88,60 @@ export default function AdminUsersTable() {
       setLoading(true);
 
       try {
-        // Dans un environnement réel, cela serait une requête API
-        // await fetch('/api/admin/users')
+        // Utilisation de l'API réelle
+        const response = await fetch("/api/admin/users");
 
-        // Pour la démo, on utilise des données fictives
-        const mockUsers: User[] = [
-          {
-            id: "user1",
-            email: "user@example.com",
-            role: "USER",
-            createdAt: "2023-01-10T00:00:00.000Z",
-            lastLogin: "2023-06-15T10:30:00.000Z",
-            isActive: true,
-          },
-          {
-            id: "user2",
-            email: "creator@example.com",
-            role: "CREATOR",
-            createdAt: "2023-02-15T00:00:00.000Z",
-            lastLogin: "2023-06-14T08:45:00.000Z",
-            isActive: true,
-          },
-          {
-            id: "user3",
-            email: "admin@example.com",
-            role: "ADMIN",
-            createdAt: "2023-01-05T00:00:00.000Z",
-            lastLogin: "2023-06-16T09:20:00.000Z",
-            isActive: true,
-          },
-          {
-            id: "user4",
-            email: "suspended@example.com",
-            role: "USER",
-            createdAt: "2023-03-20T00:00:00.000Z",
-            lastLogin: "2023-05-10T14:15:00.000Z",
-            isActive: false,
-          },
-          {
-            id: "user5",
-            email: "newuser@example.com",
-            role: "USER",
-            createdAt: "2023-06-01T00:00:00.000Z",
-            lastLogin: null,
-            isActive: true,
-          },
-        ];
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || "Erreur lors du chargement des utilisateurs"
+          );
+        }
 
-        setUsers(mockUsers);
+        const data = await response.json();
+        setUsers(data);
       } catch (err) {
         console.error("Erreur lors du chargement des utilisateurs:", err);
         setError("Impossible de charger les utilisateurs");
+        toast({
+          title: "Erreur",
+          description:
+            err instanceof Error
+              ? err.message
+              : "Impossible de charger les utilisateurs",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchUsers();
-  }, []);
+  }, [toast]);
 
   const handleUserStatusUpdate = async () => {
     if (!selectedUser) return;
 
     try {
-      // Dans un environnement réel, cela serait une requête API
-      // await fetch(`/api/admin/users/${selectedUser.id}`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     isActive: selectedAction === 'activate',
-      //   }),
-      // });
+      // Utilisation de l'API réelle
+      const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isActive: selectedAction === "activate",
+        }),
+      });
 
-      // Pour la démo, on met à jour localement
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Erreur lors de la mise à jour de l'utilisateur"
+        );
+      }
+
+      // Mettre à jour localement après confirmation de la réponse API
       setUsers(
         users.map((user) =>
           user.id === selectedUser.id
@@ -185,7 +166,9 @@ export default function AdminUsersTable() {
       toast({
         title: "Erreur",
         description:
-          "Une erreur est survenue lors de la mise à jour de l'utilisateur",
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue lors de la mise à jour de l'utilisateur",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -197,12 +180,19 @@ export default function AdminUsersTable() {
     if (!selectedUser) return;
 
     try {
-      // Dans un environnement réel, cela serait une requête API
-      // await fetch(`/api/admin/users/${selectedUser.id}`, {
-      //   method: 'DELETE',
-      // });
+      // Utilisation de l'API réelle
+      const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: "DELETE",
+      });
 
-      // Pour la démo, on met à jour localement
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Erreur lors de la suppression de l'utilisateur"
+        );
+      }
+
+      // Mettre à jour localement après confirmation de la réponse API
       setUsers(users.filter((user) => user.id !== selectedUser.id));
 
       toast({
@@ -218,7 +208,9 @@ export default function AdminUsersTable() {
       toast({
         title: "Erreur",
         description:
-          "Une erreur est survenue lors de la suppression de l'utilisateur",
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue lors de la suppression de l'utilisateur",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -241,14 +233,20 @@ export default function AdminUsersTable() {
   };
 
   const openResetPasswordModal = (user: User) => {
-    // Cette fonctionnalité nécessiterait une API pour réinitialiser le mot de passe
+    setSelectedUser(user);
+
     toast({
-      title: "Fonctionnalité en cours de développement",
-      description: `Email de réinitialisation envoyé à ${user.email}`,
+      title: "Envoi d'un email de réinitialisation",
+      description: "Fonctionnalité en cours d'implémentation",
       status: "info",
       duration: 3000,
       isClosable: true,
     });
+
+    // Dans une version complète, nous appellerions l'API
+    // fetch(`/api/admin/users/${user.id}/reset-password`, {
+    //   method: 'POST',
+    // });
   };
 
   const filteredUsers = users
@@ -307,6 +305,7 @@ export default function AdminUsersTable() {
           border="none"
           color="white"
           aria-label="Filtrer par rôle"
+          title="Filtrer par rôle"
         >
           <option value="">Tous</option>
           <option value="USER">Utilisateurs</option>
@@ -323,6 +322,7 @@ export default function AdminUsersTable() {
           border="none"
           color="white"
           aria-label="Filtrer par statut"
+          title="Filtrer par statut"
         >
           <option value="">Tous</option>
           <option value="active">Actifs</option>

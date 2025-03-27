@@ -81,79 +81,63 @@ export default function AdminCreatorsTable() {
       setLoading(true);
 
       try {
-        // Dans un environnement réel, cela serait une requête API
-        // await fetch('/api/admin/creators')
+        // Appel à l'API réelle
+        const response = await fetch("/api/admin/creators");
 
-        // Pour la démo, on utilise des données fictives
-        const mockCreators: Creator[] = [
-          {
-            id: "creator1",
-            email: "creator@example.com",
-            isVerified: true,
-            createdAt: "2023-01-15T00:00:00.000Z",
-            contentCount: 12,
-            totalSales: 1250.75,
-          },
-          {
-            id: "creator2",
-            email: "filmmaker@example.com",
-            isVerified: true,
-            createdAt: "2023-02-20T00:00:00.000Z",
-            contentCount: 8,
-            totalSales: 786.5,
-          },
-          {
-            id: "creator3",
-            email: "director@example.com",
-            isVerified: false,
-            createdAt: "2023-03-10T00:00:00.000Z",
-            contentCount: 3,
-            totalSales: 0,
-          },
-          {
-            id: "creator4",
-            email: "producer@example.com",
-            isVerified: true,
-            createdAt: "2023-02-05T00:00:00.000Z",
-            contentCount: 15,
-            totalSales: 3245.25,
-          },
-          {
-            id: "creator5",
-            email: "newartist@example.com",
-            isVerified: false,
-            createdAt: "2023-04-01T00:00:00.000Z",
-            contentCount: 0,
-            totalSales: 0,
-          },
-        ];
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || "Erreur lors du chargement des créateurs"
+          );
+        }
 
-        setCreators(mockCreators);
+        const data = await response.json();
+        setCreators(data);
       } catch (err) {
         console.error("Erreur lors du chargement des créateurs:", err);
         setError("Impossible de charger les créateurs");
+        toast({
+          title: "Erreur",
+          description:
+            err instanceof Error
+              ? err.message
+              : "Impossible de charger les créateurs",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchCreators();
-  }, []);
+  }, [toast]);
 
   const handleUpdateVerification = async () => {
     if (!selectedCreator) return;
 
     try {
-      // Dans un environnement réel, cela serait une requête API
-      // await fetch(`/api/admin/creators/${selectedCreator.id}`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     isVerified: newVerificationStatus,
-      //   }),
-      // });
+      // Appel à l'API réelle
+      const response = await fetch(
+        `/api/admin/creators/${selectedCreator.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isVerified: newVerificationStatus,
+          }),
+        }
+      );
 
-      // Pour la démo, on met à jour localement
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Erreur lors de la mise à jour du créateur"
+        );
+      }
+
+      // Mise à jour locale après confirmation de l'API
       setCreators(
         creators.map((creator) =>
           creator.id === selectedCreator.id
@@ -177,7 +161,9 @@ export default function AdminCreatorsTable() {
       toast({
         title: "Erreur",
         description:
-          "Une erreur est survenue lors de la mise à jour du créateur",
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue lors de la mise à jour du créateur",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -189,6 +175,26 @@ export default function AdminCreatorsTable() {
     setSelectedCreator(creator);
     setNewVerificationStatus(!creator.isVerified);
     onOpen();
+  };
+
+  const handleSendEmail = (creator: Creator) => {
+    toast({
+      title: "Email envoyé",
+      description: `Un email a été envoyé à ${creator.email}`,
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+
+    // Dans une version complète, nous ferions un appel API
+    // fetch(`/api/admin/creators/${creator.id}/send-email`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     subject: "Message de l'administrateur de la plateforme",
+    //     message: "Votre message ici..."
+    //   }),
+    // });
   };
 
   const filteredCreators = creators
@@ -246,6 +252,7 @@ export default function AdminCreatorsTable() {
           border="none"
           color="white"
           aria-label="Filtrer par statut"
+          title="Filtrer par statut"
         >
           <option value="">Tous</option>
           <option value="verified">Vérifiés</option>

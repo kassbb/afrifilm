@@ -93,93 +93,72 @@ export default function AdminContentsTable() {
   const borderColor = useColorModeValue("gray.700", "gray.700");
   const hoverBg = useColorModeValue("gray.800", "gray.700");
 
-  // Fonction fictive pour charger les contenus
+  // Fonction pour charger les contenus
   useEffect(() => {
     const fetchContents = async () => {
       setLoading(true);
 
       try {
-        // Dans un environnement réel, cela serait une requête API
-        // await fetch('/api/admin/contents')
+        // Appel à l'API admin/contents
+        const response = await fetch("/api/admin/contents");
 
-        // Pour la démo, on utilise des données fictives
-        const mockContents: Content[] = [
-          {
-            id: "1",
-            title: "La Lumière de Dakar",
-            type: "FILM",
-            price: 4.99,
-            isApproved: true,
-            createdAt: "2023-04-12T00:00:00.000Z",
-            creator: { id: "creator1", email: "creator@example.com" },
-          },
-          {
-            id: "2",
-            title: "Sables d'Or",
-            type: "FILM",
-            price: 5.99,
-            isApproved: false,
-            createdAt: "2023-05-22T00:00:00.000Z",
-            creator: { id: "creator1", email: "creator@example.com" },
-            rejectionReason: null,
-          },
-          {
-            id: "3",
-            title: "Destins croisés",
-            type: "SERIE",
-            price: 9.99,
-            isApproved: true,
-            createdAt: "2023-03-15T00:00:00.000Z",
-            creator: { id: "creator2", email: "creator2@example.com" },
-          },
-          {
-            id: "4",
-            title: "Lagos Nights",
-            type: "SERIE",
-            price: 8.99,
-            isApproved: false,
-            createdAt: "2023-06-01T00:00:00.000Z",
-            creator: { id: "creator2", email: "creator2@example.com" },
-            rejectionReason: "Qualité vidéo insuffisante",
-          },
-          {
-            id: "5",
-            title: "Rêves d'Abidjan",
-            type: "FILM",
-            price: null,
-            isApproved: true,
-            createdAt: "2023-05-05T00:00:00.000Z",
-            creator: { id: "creator3", email: "creator3@example.com" },
-          },
-        ];
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || "Erreur lors du chargement des contenus"
+          );
+        }
 
-        setContents(mockContents);
+        const data = await response.json();
+        setContents(data);
       } catch (err) {
         console.error("Erreur lors du chargement des contenus:", err);
         setError("Impossible de charger les contenus");
+        toast({
+          title: "Erreur",
+          description:
+            err instanceof Error
+              ? err.message
+              : "Impossible de charger les contenus",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+          position: "top-right",
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchContents();
-  }, []);
+  }, [toast]);
 
   const handleApproveReject = async () => {
     if (!selectedContent) return;
 
     try {
-      // Dans un environnement réel, cela serait une requête API
-      // await fetch(`/api/admin/contents/${selectedContent.id}`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     isApproved: approvalAction === 'approve',
-      //     rejectionReason: approvalAction === 'reject' ? rejectionReason : null,
-      //   }),
-      // });
+      // Appel à l'API réelle
+      const response = await fetch(
+        `/api/admin/contents/${selectedContent.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isApproved: approvalAction === "approve",
+            rejectionReason:
+              approvalAction === "reject" ? rejectionReason : null,
+          }),
+        }
+      );
 
-      // Pour la démo, on met à jour localement
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Erreur lors de la mise à jour du contenu"
+        );
+      }
+
+      // Mise à jour locale après confirmation de l'API
       setContents(
         contents.map((content) =>
           content.id === selectedContent.id
@@ -208,7 +187,50 @@ export default function AdminContentsTable() {
       toast({
         title: "Erreur",
         description:
-          "Une erreur est survenue lors de la mise à jour du contenu",
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue lors de la mise à jour du contenu",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+        position: "top-right",
+      });
+    }
+  };
+
+  // Ajout d'une fonction pour supprimer un contenu
+  const handleDeleteContent = async (contentId: string) => {
+    try {
+      // Appel à l'API réelle
+      const response = await fetch(`/api/admin/contents/${contentId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Erreur lors de la suppression du contenu"
+        );
+      }
+
+      // Mise à jour locale après confirmation de l'API
+      setContents(contents.filter((content) => content.id !== contentId));
+
+      toast({
+        title: "Contenu supprimé",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+        position: "top-right",
+      });
+    } catch (err) {
+      console.error("Erreur lors de la suppression du contenu:", err);
+      toast({
+        title: "Erreur",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue lors de la suppression du contenu",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -247,10 +269,10 @@ export default function AdminContentsTable() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('fr-FR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
     }).format(date);
   };
 
@@ -272,10 +294,10 @@ export default function AdminContentsTable() {
 
   return (
     <Box>
-      <Flex 
-        justify="space-between" 
-        align="center" 
-        mb={4} 
+      <Flex
+        justify="space-between"
+        align="center"
+        mb={4}
         flexWrap="wrap"
         gap={3}
       >
@@ -295,10 +317,10 @@ export default function AdminContentsTable() {
 
         <HStack spacing={2}>
           <Menu closeOnSelect={false}>
-            <MenuButton 
-              as={Button} 
-              rightIcon={<FiFilter />} 
-              size="sm" 
+            <MenuButton
+              as={Button}
+              rightIcon={<FiFilter />}
+              size="sm"
               variant="outline"
               borderColor="gray.600"
               _hover={{ bg: "gray.700" }}
@@ -308,7 +330,9 @@ export default function AdminContentsTable() {
             <MenuList bgColor="gray.800" borderColor="gray.700">
               <Box p={3}>
                 <FormControl mb={3}>
-                  <FormLabel fontSize="sm" color="gray.400">Type</FormLabel>
+                  <FormLabel fontSize="sm" color="gray.400">
+                    Type
+                  </FormLabel>
                   <Select
                     size="sm"
                     value={filter.type}
@@ -317,6 +341,8 @@ export default function AdminContentsTable() {
                     }
                     bg="gray.700"
                     borderColor="gray.600"
+                    title="Filtrer par type"
+                    aria-label="Filtrer par type"
                   >
                     <option value="">Tous</option>
                     <option value="FILM">Film</option>
@@ -324,7 +350,9 @@ export default function AdminContentsTable() {
                   </Select>
                 </FormControl>
                 <FormControl>
-                  <FormLabel fontSize="sm" color="gray.400">Statut</FormLabel>
+                  <FormLabel fontSize="sm" color="gray.400">
+                    Statut
+                  </FormLabel>
                   <Select
                     size="sm"
                     value={filter.status}
@@ -333,6 +361,8 @@ export default function AdminContentsTable() {
                     }
                     bg="gray.700"
                     borderColor="gray.600"
+                    title="Filtrer par statut"
+                    aria-label="Filtrer par statut"
                   >
                     <option value="">Tous</option>
                     <option value="approved">Approuvé</option>
@@ -358,13 +388,27 @@ export default function AdminContentsTable() {
         <Table variant="simple" size="md">
           <Thead>
             <Tr bg="gray.700">
-              <Th color="gray.300" borderColor={borderColor}>Titre</Th>
-              <Th color="gray.300" borderColor={borderColor}>Type</Th>
-              <Th color="gray.300" borderColor={borderColor}>Prix</Th>
-              <Th color="gray.300" borderColor={borderColor}>Statut</Th>
-              <Th color="gray.300" borderColor={borderColor}>Date</Th>
-              <Th color="gray.300" borderColor={borderColor}>Créateur</Th>
-              <Th color="gray.300" borderColor={borderColor} textAlign="right">Actions</Th>
+              <Th color="gray.300" borderColor={borderColor}>
+                Titre
+              </Th>
+              <Th color="gray.300" borderColor={borderColor}>
+                Type
+              </Th>
+              <Th color="gray.300" borderColor={borderColor}>
+                Prix
+              </Th>
+              <Th color="gray.300" borderColor={borderColor}>
+                Statut
+              </Th>
+              <Th color="gray.300" borderColor={borderColor}>
+                Date
+              </Th>
+              <Th color="gray.300" borderColor={borderColor}>
+                Créateur
+              </Th>
+              <Th color="gray.300" borderColor={borderColor} textAlign="right">
+                Actions
+              </Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -373,14 +417,17 @@ export default function AdminContentsTable() {
                 <Td colSpan={7} textAlign="center" py={10} color="gray.400">
                   <Flex direction="column" align="center">
                     <Text mb={2}>Aucun contenu trouvé</Text>
-                    <Text fontSize="sm">Modifiez vos critères de recherche ou ajoutez un nouveau contenu</Text>
+                    <Text fontSize="sm">
+                      Modifiez vos critères de recherche ou ajoutez un nouveau
+                      contenu
+                    </Text>
                   </Flex>
                 </Td>
               </Tr>
             ) : (
               filteredContents.map((content) => (
-                <Tr 
-                  key={content.id} 
+                <Tr
+                  key={content.id}
                   _hover={{ bg: hoverBg }}
                   transition="background 0.2s"
                   cursor="pointer"
@@ -391,12 +438,14 @@ export default function AdminContentsTable() {
                     </NextLink>
                   </Td>
                   <Td borderColor={borderColor}>
-                    <Tag 
-                      size="sm" 
+                    <Tag
+                      size="sm"
                       colorScheme={content.type === "FILM" ? "red" : "purple"}
                       borderRadius="full"
                     >
-                      <TagLabel>{content.type === "FILM" ? "Film" : "Série"}</TagLabel>
+                      <TagLabel>
+                        {content.type === "FILM" ? "Film" : "Série"}
+                      </TagLabel>
                     </Tag>
                   </Td>
                   <Td borderColor={borderColor}>
@@ -411,14 +460,26 @@ export default function AdminContentsTable() {
                   </Td>
                   <Td borderColor={borderColor}>
                     {content.isApproved ? (
-                      <Badge colorScheme="green" variant="subtle" px={2} py={1} borderRadius="md">
+                      <Badge
+                        colorScheme="green"
+                        variant="subtle"
+                        px={2}
+                        py={1}
+                        borderRadius="md"
+                      >
                         <HStack spacing={1}>
                           <FiCheck size={12} />
                           <Text>Approuvé</Text>
                         </HStack>
                       </Badge>
                     ) : (
-                      <Badge colorScheme="orange" variant="subtle" px={2} py={1} borderRadius="md">
+                      <Badge
+                        colorScheme="orange"
+                        variant="subtle"
+                        px={2}
+                        py={1}
+                        borderRadius="md"
+                      >
                         <HStack spacing={1}>
                           <FiClock size={12} />
                           <Text>En attente</Text>
@@ -482,6 +543,7 @@ export default function AdminContentsTable() {
                           size="sm"
                           variant="ghost"
                           colorScheme="red"
+                          onClick={() => handleDeleteContent(content.id)}
                         />
                       </Tooltip>
                     </HStack>
