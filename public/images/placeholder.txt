@@ -1,0 +1,2 @@
+Ce dossier devrait contenir les images des films et séries.
+Pour des tests, placez ici des fichiers JPG nommés film1.jpg, film2.jpg, etc. 

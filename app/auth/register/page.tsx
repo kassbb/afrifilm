@@ -1,102 +1,111 @@
 "use client";
 
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Box,
   Button,
   Container,
   FormControl,
   FormLabel,
-  Input,
-  Stack,
-  Text,
-  useToast,
   Heading,
-  Link as ChakraLink,
-  Radio,
-  RadioGroup,
+  Input,
+  Text,
+  VStack,
+  useToast,
+  Select,
   FormErrorMessage,
+  Divider,
+  HStack,
+  Flex,
 } from "@chakra-ui/react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { useState } from "react";
 import { z } from "zod";
 
-const registerSchema = z
-  .object({
-    email: z.string().email("Email invalide"),
-    password: z
-      .string()
-      .min(8, "Le mot de passe doit contenir au moins 8 caractères"),
-    confirmPassword: z.string(),
-    role: z.enum(["USER", "CREATOR"]),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Les mots de passe ne correspondent pas",
-    path: ["confirmPassword"],
-  });
+// Schéma de validation du formulaire
+const registerSchema = z.object({
+  email: z.string().email("Adresse email invalide"),
+  password: z
+    .string()
+    .min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  accountType: z.enum(["USER", "CREATOR"], {
+    errorMap: () => ({ message: "Type de compte requis" }),
+  }),
+});
+
+type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<RegisterFormData>({
+    email: "",
+    password: "",
+    accountType: "USER",
+  });
+  const [errors, setErrors] = useState<Partial<RegisterFormData>>({});
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Effacer l'erreur lorsque l'utilisateur modifie le champ
+    if (errors[name as keyof RegisterFormData]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setErrors({});
-
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      confirmPassword: formData.get("confirmPassword") as string,
-      role: formData.get("role") as "USER" | "CREATOR",
-    };
 
     try {
-      registerSchema.parse(data);
+      // Valider les données du formulaire
+      const validatedData = registerSchema.parse(formData);
 
+      // Appel API pour l'inscription
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-          role: data.role,
-        }),
+        body: JSON.stringify(validatedData),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message);
+        throw new Error(data.error || "Erreur lors de l'inscription");
       }
 
+      // Afficher un message de succès
       toast({
-        title: "Compte créé avec succès",
-        description: "Vous pouvez maintenant vous connecter",
+        title: "Inscription réussie",
+        description: "Vous pouvez maintenant vous connecter.",
         status: "success",
         duration: 5000,
         isClosable: true,
       });
 
+      // Rediriger vers la page de connexion
       router.push("/auth/login");
     } catch (error) {
+      // Gérer les erreurs de validation Zod
       if (error instanceof z.ZodError) {
-        const formattedErrors: Record<string, string> = {};
+        const newErrors: Partial<RegisterFormData> = {};
         error.errors.forEach((err) => {
-          if (err.path[0]) {
-            formattedErrors[err.path[0] as string] = err.message;
+          if (err.path) {
+            newErrors[err.path[0] as keyof RegisterFormData] = err.message;
           }
         });
-        setErrors(formattedErrors);
-      } else {
+        setErrors(newErrors);
+      } else if (error instanceof Error) {
+        // Afficher un message d'erreur général
         toast({
           title: "Erreur",
-          description:
-            error instanceof Error ? error.message : "Une erreur est survenue",
+          description: error.message,
           status: "error",
           duration: 5000,
           isClosable: true,
@@ -108,86 +117,94 @@ export default function RegisterPage() {
   };
 
   return (
-    <Container maxW="container.sm" py={20}>
-      <Box
-        p={8}
-        borderWidth={1}
-        borderRadius="lg"
-        boxShadow="lg"
-        bg="whiteAlpha.100"
-      >
-        <Stack spacing={6}>
-          <Heading textAlign="center" color="brand.gold">
+    <Container maxW="md" py={12}>
+      <VStack spacing={8} align="stretch">
+        <Box textAlign="center">
+          <Heading size="xl" mb={2}>
             Créer un compte
           </Heading>
-          <form onSubmit={handleSubmit}>
-            <Stack spacing={4}>
-              <FormControl isRequired isInvalid={!!errors.email}>
-                <FormLabel>Email</FormLabel>
-                <Input
-                  name="email"
-                  type="email"
-                  placeholder="votre@email.com"
-                  bg="whiteAlpha.200"
-                  borderColor="whiteAlpha.300"
-                  _hover={{ borderColor: "whiteAlpha.400" }}
-                  _focus={{ borderColor: "brand.gold" }}
-                />
-                <FormErrorMessage>{errors.email}</FormErrorMessage>
-              </FormControl>
-              <FormControl isRequired isInvalid={!!errors.password}>
-                <FormLabel>Mot de passe</FormLabel>
-                <Input
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  bg="whiteAlpha.200"
-                  borderColor="whiteAlpha.300"
-                  _hover={{ borderColor: "whiteAlpha.400" }}
-                  _focus={{ borderColor: "brand.gold" }}
-                />
-                <FormErrorMessage>{errors.password}</FormErrorMessage>
-              </FormControl>
-              <FormControl isRequired isInvalid={!!errors.confirmPassword}>
-                <FormLabel>Confirmer le mot de passe</FormLabel>
-                <Input
-                  name="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  bg="whiteAlpha.200"
-                  borderColor="whiteAlpha.300"
-                  _hover={{ borderColor: "whiteAlpha.400" }}
-                  _focus={{ borderColor: "brand.gold" }}
-                />
-                <FormErrorMessage>{errors.confirmPassword}</FormErrorMessage>
-              </FormControl>
-              <FormControl isRequired>
-                <FormLabel>Type de compte</FormLabel>
-                <RadioGroup name="role" defaultValue="USER">
-                  <Stack direction="row" spacing={8}>
-                    <Radio value="USER">Spectateur</Radio>
-                    <Radio value="CREATOR">Créateur</Radio>
-                  </Stack>
-                </RadioGroup>
-              </FormControl>
-              <Button
-                type="submit"
-                colorScheme="red"
-                size="lg"
-                isLoading={isLoading}
-              >
-                S'inscrire
-              </Button>
-            </Stack>
-          </form>
-          <Text textAlign="center">
-            Déjà un compte ?{" "}
-            <Link href="/auth/login" passHref>
-              <ChakraLink color="brand.gold">Se connecter</ChakraLink>
-            </Link>
+          <Text color="gray.600">
+            Rejoignez la communauté AfriFilm dès aujourd'hui
           </Text>
-        </Stack>
-      </Box>
+        </Box>
+
+        <Box as="form" onSubmit={handleSubmit}>
+          <VStack spacing={4}>
+            <FormControl isInvalid={!!errors.email} isRequired>
+              <FormLabel>Email</FormLabel>
+              <Input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="votre@email.com"
+              />
+              {errors.email && (
+                <FormErrorMessage>{errors.email}</FormErrorMessage>
+              )}
+            </FormControl>
+
+            <FormControl isInvalid={!!errors.password} isRequired>
+              <FormLabel>Mot de passe</FormLabel>
+              <Input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="******"
+              />
+              {errors.password && (
+                <FormErrorMessage>{errors.password}</FormErrorMessage>
+              )}
+            </FormControl>
+
+            <FormControl isInvalid={!!errors.accountType} isRequired>
+              <FormLabel htmlFor="accountType">Type de compte</FormLabel>
+              <Select
+                id="accountType"
+                name="accountType"
+                value={formData.accountType}
+                onChange={handleChange}
+                aria-label="Sélectionner le type de compte"
+              >
+                <option value="USER">Spectateur</option>
+                <option value="CREATOR">Créateur de contenu</option>
+              </Select>
+              {errors.accountType && (
+                <FormErrorMessage>{errors.accountType}</FormErrorMessage>
+              )}
+              {formData.accountType === "CREATOR" && (
+                <Text fontSize="sm" color="gray.500" mt={2}>
+                  Les comptes créateurs nécessitent une vérification par nos
+                  administrateurs.
+                </Text>
+              )}
+            </FormControl>
+
+            <Button
+              type="submit"
+              colorScheme="blue"
+              width="full"
+              mt={6}
+              isLoading={isLoading}
+              loadingText="Inscription..."
+            >
+              S'inscrire
+            </Button>
+
+            <Divider my={6} />
+
+            <Flex justifyContent="center">
+              <Text mr={2}>Vous avez déjà un compte?</Text>
+              <Link href="/auth/login">
+                <Text color="blue.500" fontWeight="semibold">
+                  Connexion
+                </Text>
+              </Link>
+            </Flex>
+          </VStack>
+        </Box>
+      </VStack>
     </Container>
   );
 }

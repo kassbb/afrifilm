@@ -39,7 +39,13 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        const isAuthPage = req.nextUrl.pathname.startsWith("/auth");
+        if (isAuthPage) {
+          return true;
+        }
+        return !!token;
+      },
     },
   }
 );

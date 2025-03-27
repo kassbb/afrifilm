@@ -208,5 +208,4 @@ Guide de déploiement local."*
 Émojis culturels : 🥁 (tambour), 🎭 (masque), 🌍 (Afrique).
 
 Noms de sections : "Tendances du Sahel", "Classiques Africains".
-
 Ce prompt est prêt à l’emploi pour un dev ou une IA. Besoin d’ajouts ? 🛠️

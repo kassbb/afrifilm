@@ -1,67 +1,85 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { z } from "zod";
+import * as z from "zod";
 
 const prisma = new PrismaClient();
 
+// Schéma de validation pour l'inscription
 const registerSchema = z.object({
-  email: z.string().email("Email invalide"),
+  email: z.string().email("Format d'email invalide"),
   password: z
     .string()
-    .min(8, "Le mot de passe doit contenir au moins 8 caractères"),
-  role: z.enum(["USER", "CREATOR"]),
+    .min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  accountType: z.enum(["USER", "CREATOR"], {
+    errorMap: () => ({ message: "Type de compte invalide" }),
+  }),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validatedData = registerSchema.parse(body);
 
-    // Check if user already exists
+    // Valider les données
+    try {
+      registerSchema.parse(body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: error.errors[0].message },
+          { status: 400 }
+        );
+      }
+    }
+
+    const { email, password, accountType } = body;
+
+    // Vérifier si l'email existe déjà
     const existingUser = await prisma.user.findUnique({
-      where: {
-        email: validatedData.email,
-      },
+      where: { email },
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { message: "Un utilisateur avec cet email existe déjà" },
+        { error: "Cet email est déjà utilisé" },
         { status: 400 }
       );
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+    // Hasher le mot de passe
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    // Créer les données utilisateur en fonction du type de compte
+    const userData: any = {
+      email,
+      password: hashedPassword,
+      role: accountType,
+    };
+
+    // Si c'est un créateur, définir isVerified à false
+    if (accountType === "CREATOR") {
+      userData.isVerified = false;
+    }
+
+    // Créer l'utilisateur
     const user = await prisma.user.create({
-      data: {
-        email: validatedData.email,
-        password: hashedPassword,
-        role: validatedData.role,
-      },
+      data: userData,
     });
 
-    // Remove password from response
-    const { password, ...userWithoutPassword } = user;
+    // Ne pas renvoyer le mot de passe
+    const { password: _, ...userWithoutPassword } = user;
 
-    return NextResponse.json(
-      { message: "Utilisateur créé avec succès", user: userWithoutPassword },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      message:
+        accountType === "CREATOR"
+          ? "Compte créé avec succès. Un administrateur va examiner votre demande."
+          : "Compte créé avec succès",
+      user: userWithoutPassword,
+    });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { message: "Données invalides", errors: error.errors },
-        { status: 400 }
-      );
-    }
-
-    console.error("Registration error:", error);
+    console.error("Erreur lors de l'inscription:", error);
     return NextResponse.json(
-      { message: "Une erreur est survenue lors de l'inscription" },
+      { error: "Erreur lors de la création du compte" },
       { status: 500 }
     );
   }

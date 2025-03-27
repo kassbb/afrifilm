@@ -1,256 +1,259 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
   Box,
-  Container,
+  Flex,
+  Grid,
+  GridItem,
   Heading,
+  Spinner,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Text,
-  Stack,
-  SimpleGrid,
-  Button,
   useColorModeValue,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
+  SimpleGrid,
+  Container,
   Badge,
-  useToast,
+  Button,
+  HStack,
+  Icon,
 } from "@chakra-ui/react";
-import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import {
+  FiUsers,
+  FiFilm,
+  FiVideo,
+  FiDollarSign,
+  FiClock,
+  FiPlus,
+  FiRefreshCw,
+} from "react-icons/fi";
 
-interface User {
-  id: string;
-  email: string;
-  role: string;
-  isVerified: boolean;
-  createdAt: string;
-}
-
-interface Content {
-  id: string;
-  title: string;
-  type: string;
-  creator: {
-    email: string;
-  };
-  isApproved: boolean;
-  createdAt: string;
-}
+import AdminSidebar from "../../components/admin/AdminSidebar";
+import AdminContentsTable from "../../components/admin/AdminContentsTable";
+import AdminCreatorsTable from "../../components/admin/AdminCreatorsTable";
+import AdminStatisticsCard from "../../components/admin/AdminStatisticsCard";
 
 export default function AdminDashboard() {
-  const { data: session } = useSession();
-  const [users, setUsers] = useState<User[]>([]);
-  const [content, setContent] = useState<Content[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const toast = useToast();
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
 
+  // Rediriger si l'utilisateur n'est pas connecté ou n'est pas admin
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [usersResponse, contentResponse] = await Promise.all([
-          fetch("/api/admin/users"),
-          fetch("/api/admin/content"),
-        ]);
+    if (status === "loading") return;
 
-        if (usersResponse.ok) {
-          const usersData = await usersResponse.json();
-          setUsers(usersData);
-        }
-
-        if (contentResponse.ok) {
-          const contentData = await contentResponse.json();
-          setContent(contentData);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger les données",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (session) {
-      fetchData();
+    if (!session) {
+      router.push("/auth/login");
+      return;
     }
-  }, [session, toast]);
 
-  const bgColor = useColorModeValue("whiteAlpha.100", "whiteAlpha.50");
+    if (session?.user?.role !== "ADMIN") {
+      router.push("/");
+      return;
+    }
 
-  if (!session || session.user?.role !== "ADMIN") {
-    return null;
+    setLoading(false);
+  }, [session, status, router]);
+
+  const handleRefresh = () => {
+    // Simuler un rafraîchissement des données
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setLastUpdate(new Date());
+    }, 800);
+  };
+
+  if (loading) {
+    return (
+      <Flex justify="center" align="center" minH="100vh" bg="gray.900">
+        <Flex direction="column" align="center">
+          <Spinner
+            size="xl"
+            color="red.500"
+            thickness="4px"
+            speed="0.65s"
+            mb={4}
+          />
+          <Text color="gray.300" fontSize="lg">
+            Chargement du tableau de bord...
+          </Text>
+        </Flex>
+      </Flex>
+    );
   }
 
   return (
-    <Container maxW="container.xl" py={20}>
-      <Stack spacing={8}>
-        <Box>
-          <Stack
-            direction={{ base: "column", md: "row" }}
-            justify="space-between"
-            align="center"
+    <Flex minH="100vh" bg={useColorModeValue("gray.900", "gray.900")}>
+      <AdminSidebar />
+
+      <Box flex="1" ml={{ base: 0, md: 60 }} p={0}>
+        {/* Header du dashboard */}
+        <Box
+          bg="gray.800"
+          p={6}
+          borderBottom="1px solid"
+          borderColor="gray.700"
+          boxShadow="sm"
+        >
+          <Flex justify="space-between" align="center">
+            <Box>
+              <Heading as="h1" size="lg" color="white" mb={1}>
+                Tableau de bord
+              </Heading>
+              <Text color="gray.400" fontSize="sm">
+                Bienvenue, {session?.user?.name || "administrateur"} | Dernière
+                mise à jour: {lastUpdate.toLocaleTimeString()}
+              </Text>
+            </Box>
+            <HStack>
+              <Button
+                leftIcon={<Icon as={FiPlus} />}
+                colorScheme="red"
+                size="sm"
+                onClick={() => router.push("/admin/contents/add")}
+              >
+                Nouveau contenu
+              </Button>
+              <Button
+                leftIcon={<Icon as={FiRefreshCw} />}
+                variant="outline"
+                colorScheme="gray"
+                size="sm"
+                onClick={handleRefresh}
+              >
+                Actualiser
+              </Button>
+            </HStack>
+          </Flex>
+        </Box>
+
+        <Container maxW="container.xl" py={8}>
+          {/* Bannière pour contenus en attente */}
+          <Box
+            bg="orange.500"
+            color="white"
+            p={4}
+            borderRadius="lg"
             mb={8}
+            boxShadow="md"
           >
-            <Heading>Tableau de Bord Administrateur</Heading>
-            <Stack direction="row" spacing={4}>
-              <Link href="/admin/users" passHref>
-                <Button colorScheme="red" variant="outline">
-                  Gérer les Utilisateurs
-                </Button>
-              </Link>
-              <Link href="/admin/content" passHref>
-                <Button colorScheme="red" variant="outline">
-                  Gérer le Contenu
-                </Button>
-              </Link>
-            </Stack>
-          </Stack>
+            <Flex justify="space-between" align="center">
+              <HStack>
+                <Icon as={FiClock} fontSize="xl" />
+                <Text fontWeight="bold">
+                  28 contenus en attente d'approbation
+                </Text>
+              </HStack>
+              <Button
+                size="sm"
+                colorScheme="whiteAlpha"
+                onClick={() => router.push("/admin/contents?filter=pending")}
+              >
+                Voir tous
+              </Button>
+            </Flex>
+          </Box>
 
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
-            <Box p={6} borderRadius="lg" bg={bgColor} boxShadow="lg">
-              <Text fontSize="lg" fontWeight="bold" mb={2}>
-                Utilisateurs Totaux
-              </Text>
-              <Text fontSize="3xl">{users.length}</Text>
-            </Box>
-            <Box p={6} borderRadius="lg" bg={bgColor} boxShadow="lg">
-              <Text fontSize="lg" fontWeight="bold" mb={2}>
-                Créateurs
-              </Text>
-              <Text fontSize="3xl">
-                {users.filter((user) => user.role === "CREATOR").length}
-              </Text>
-            </Box>
-            <Box p={6} borderRadius="lg" bg={bgColor} boxShadow="lg">
-              <Text fontSize="lg" fontWeight="bold" mb={2}>
-                Contenu Total
-              </Text>
-              <Text fontSize="3xl">{content.length}</Text>
-            </Box>
-            <Box p={6} borderRadius="lg" bg={bgColor} boxShadow="lg">
-              <Text fontSize="lg" fontWeight="bold" mb={2}>
-                En Attente d'Approbation
-              </Text>
-              <Text fontSize="3xl">
-                {content.filter((item) => !item.isApproved).length}
-              </Text>
-            </Box>
+          {/* Statistiques */}
+          <Heading as="h2" size="md" color="white" mb={4}>
+            Aperçu général
+          </Heading>
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={5} mb={10}>
+            <AdminStatisticsCard
+              title="Utilisateurs"
+              value="8,749"
+              icon={FiUsers}
+              color="blue"
+              change={12}
+              changeLabel="ce mois"
+            />
+            <AdminStatisticsCard
+              title="Films"
+              value="352"
+              icon={FiFilm}
+              color="red"
+              change={8}
+              changeLabel="ce mois"
+            />
+            <AdminStatisticsCard
+              title="Séries"
+              value="124"
+              icon={FiVideo}
+              color="purple"
+              change={5}
+              changeLabel="ce mois"
+            />
+            <AdminStatisticsCard
+              title="Revenus"
+              value="35,892 €"
+              icon={FiDollarSign}
+              color="green"
+              change={15}
+              changeLabel="ce mois"
+            />
+            <AdminStatisticsCard
+              title="En attente"
+              value="28"
+              icon={FiClock}
+              color="orange"
+              change={-7}
+              changeLabel="depuis hier"
+            />
           </SimpleGrid>
-        </Box>
 
-        <Box>
-          <Heading size="md" mb={6}>
-            Derniers Utilisateurs
-          </Heading>
-          <Box overflowX="auto">
-            <Table variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Email</Th>
-                  <Th>Rôle</Th>
-                  <Th>Statut</Th>
-                  <Th>Date d'inscription</Th>
-                  <Th>Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {users.slice(0, 5).map((user) => (
-                  <Tr key={user.id}>
-                    <Td>{user.email}</Td>
-                    <Td>
-                      <Badge
-                        colorScheme={
-                          user.role === "ADMIN"
-                            ? "red"
-                            : user.role === "CREATOR"
-                            ? "purple"
-                            : "blue"
-                        }
-                      >
-                        {user.role}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge colorScheme={user.isVerified ? "green" : "yellow"}>
-                        {user.isVerified ? "Vérifié" : "Non vérifié"}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      {new Date(user.createdAt).toLocaleDateString("fr-FR")}
-                    </Td>
-                    <Td>
-                      <Link href={`/admin/users/${user.id}`} passHref>
-                        <Button size="sm" variant="ghost">
-                          Gérer
-                        </Button>
-                      </Link>
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </Box>
-        </Box>
+          {/* Tableaux */}
+          <Box bg="gray.800" borderRadius="xl" p={5} boxShadow="md" mb={8}>
+            <Heading as="h2" size="md" color="white" mb={5}>
+              Gestion des données
+            </Heading>
+            <Tabs variant="line" colorScheme="red" isLazy>
+              <TabList borderBottomColor="gray.700">
+                <Tab
+                  color="gray.400"
+                  _selected={{ color: "red.500", borderColor: "red.500" }}
+                  fontWeight="medium"
+                >
+                  Contenus
+                </Tab>
+                <Tab
+                  color="gray.400"
+                  _selected={{ color: "red.500", borderColor: "red.500" }}
+                  fontWeight="medium"
+                >
+                  Créateurs
+                </Tab>
+                <Badge
+                  ml={3}
+                  mt={2}
+                  colorScheme="red"
+                  variant="solid"
+                  borderRadius="full"
+                  px={2}
+                >
+                  Nouveaux
+                </Badge>
+              </TabList>
 
-        <Box>
-          <Heading size="md" mb={6}>
-            Contenu Récent
-          </Heading>
-          <Box overflowX="auto">
-            <Table variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Titre</Th>
-                  <Th>Type</Th>
-                  <Th>Créateur</Th>
-                  <Th>Statut</Th>
-                  <Th>Date</Th>
-                  <Th>Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {content.slice(0, 5).map((item) => (
-                  <Tr key={item.id}>
-                    <Td>{item.title}</Td>
-                    <Td>
-                      <Badge
-                        colorScheme={item.type === "FILM" ? "blue" : "purple"}
-                      >
-                        {item.type}
-                      </Badge>
-                    </Td>
-                    <Td>{item.creator.email}</Td>
-                    <Td>
-                      <Badge colorScheme={item.isApproved ? "green" : "yellow"}>
-                        {item.isApproved ? "Approuvé" : "En attente"}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      {new Date(item.createdAt).toLocaleDateString("fr-FR")}
-                    </Td>
-                    <Td>
-                      <Link href={`/admin/content/${item.id}`} passHref>
-                        <Button size="sm" variant="ghost">
-                          Gérer
-                        </Button>
-                      </Link>
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+              <TabPanels>
+                <TabPanel px={0}>
+                  <AdminContentsTable />
+                </TabPanel>
+                <TabPanel px={0}>
+                  <AdminCreatorsTable />
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
           </Box>
-        </Box>
-      </Stack>
-    </Container>
+        </Container>
+      </Box>
+    </Flex>
   );
 }

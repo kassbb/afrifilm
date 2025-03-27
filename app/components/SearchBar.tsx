@@ -10,7 +10,15 @@ import { FiSearch } from "react-icons/fi";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function SearchBar() {
+interface SearchBarProps {
+  onSearch?: (query: string) => void;
+  placeholder?: string;
+}
+
+export default function SearchBar({
+  onSearch,
+  placeholder = "Rechercher un film ou une série...",
+}: SearchBarProps) {
   const [query, setQuery] = useState("");
   const router = useRouter();
   const bgColor = useColorModeValue("gray.800", "gray.700");
@@ -19,9 +27,26 @@ export default function SearchBar() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+
     if (query.trim()) {
-      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+      if (onSearch) {
+        // Utiliser le callback si fourni
+        onSearch(query.trim());
+      } else {
+        // Sinon, rediriger vers la page de recherche
+        router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+      }
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newQuery = e.target.value;
+    setQuery(newQuery);
+
+    // Option: recherche en temps réel si onSearch est fourni
+    // if (onSearch && newQuery.length > 2) {
+    //   onSearch(newQuery);
+    // }
   };
 
   return (
@@ -31,9 +56,9 @@ export default function SearchBar() {
           <FiSearch color={placeholderColor} />
         </InputLeftElement>
         <Input
-          placeholder="Rechercher un film ou une série..."
+          placeholder={placeholder}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={handleInputChange}
           bg={bgColor}
           color={textColor}
           borderColor="gray.600"

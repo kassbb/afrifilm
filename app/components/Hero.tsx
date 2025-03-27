@@ -9,93 +9,120 @@ import {
   VStack,
   HStack,
   useColorModeValue,
+  Flex,
+  Stack,
 } from "@chakra-ui/react";
 import Link from "next/link";
 import { FiPlay, FiInfo } from "react-icons/fi";
+import { useSession } from "next-auth/react";
 
 export default function Hero() {
+  const { data: session } = useSession();
   const bgGradient = useColorModeValue(
-    "linear(to-r, gray.900, gray.800)",
-    "linear(to-r, gray.900, gray.800)"
+    "linear(to-b, gray.900, black)",
+    "linear(to-b, gray.900, black)"
   );
+  const textColor = useColorModeValue("white", "white");
 
   return (
     <Box
-      position="relative"
-      h="80vh"
       bgGradient={bgGradient}
-      overflow="hidden"
-      _before={{
+      py={20}
+      px={4}
+      backgroundImage="url('/images/hero-bg.jpg')"
+      backgroundSize="cover"
+      backgroundPosition="center"
+      position="relative"
+      _after={{
         content: '""',
+        display: "block",
         position: "absolute",
         top: 0,
         left: 0,
-        right: 0,
-        bottom: 0,
-        bg: 'url("/images/hero-bg.jpg")',
-        bgSize: "cover",
-        bgPosition: "center",
-        opacity: 0.3,
-        zIndex: 1,
+        width: "100%",
+        height: "100%",
+        bg: "black",
+        opacity: 0.7,
+        zIndex: 0,
       }}
     >
-      <Container maxW="container.xl" h="full" position="relative" zIndex={2}>
-        <VStack
-          h="full"
-          justify="center"
-          align="flex-start"
-          spacing={8}
-          maxW="2xl"
+      <Flex
+        direction="column"
+        alignItems="center"
+        justifyContent="center"
+        textAlign="center"
+        maxW="container.md"
+        mx="auto"
+        position="relative"
+        zIndex={1}
+      >
+        <Heading
+          as="h1"
+          size="3xl"
+          fontWeight="bold"
+          color={textColor}
+          mb={6}
         >
-          <Heading
-            as="h1"
-            size="4xl"
-            color="white"
-            fontWeight="bold"
-            lineHeight="shorter"
-            textShadow="2px 2px 4px rgba(0,0,0,0.5)"
-          >
-            Découvrez le Meilleur du Cinéma Africain
-          </Heading>
-          <Text
-            fontSize="xl"
-            color="gray.200"
-            maxW="xl"
-            textShadow="1px 1px 2px rgba(0,0,0,0.5)"
-          >
-            Plongez dans une collection exclusive de films et séries africains
-            de qualité. Des histoires authentiques qui vous transportent au cœur
-            de l'Afrique.
-          </Text>
-          <HStack spacing={4}>
+          Découvrez le meilleur du cinéma africain
+        </Heading>
+        <Text
+          fontSize={{ base: "xl", md: "2xl" }}
+          color={textColor}
+          mb={10}
+          maxW="3xl"
+        >
+          AfriFilm vous propose une sélection unique de films et séries africains. 
+          Explorez la richesse culturelle du continent à travers des histoires captivantes.
+        </Text>
+
+        {!session ? (
+          <Stack direction={{ base: "column", md: "row" }} spacing={4}>
+            <Link href="/auth/register" passHref>
+              <Button
+                size="lg"
+                colorScheme="red"
+                fontWeight="bold"
+                px={8}
+              >
+                S'inscrire gratuitement
+              </Button>
+            </Link>
+            <Link href="/auth/login" passHref>
+              <Button
+                size="lg"
+                colorScheme="whiteAlpha"
+                fontWeight="bold"
+                px={8}
+              >
+                Se connecter
+              </Button>
+            </Link>
+          </Stack>
+        ) : (
+          <Stack direction={{ base: "column", md: "row" }} spacing={4}>
             <Link href="/films" passHref>
               <Button
-                leftIcon={<FiPlay />}
                 size="lg"
-                colorScheme="brand"
-                bg="brand.500"
-                _hover={{ bg: "brand.600" }}
+                colorScheme="red"
+                fontWeight="bold"
                 px={8}
               >
-                Commencer à regarder
+                Explorer les films
               </Button>
             </Link>
-            <Link href="/about" passHref>
+            <Link href="/series" passHref>
               <Button
-                leftIcon={<FiInfo />}
                 size="lg"
-                variant="outline"
-                color="white"
-                borderColor="white"
-                _hover={{ bg: "whiteAlpha.200" }}
+                colorScheme="whiteAlpha"
+                fontWeight="bold"
                 px={8}
               >
-                En savoir plus
+                Voir les séries
               </Button>
             </Link>
-          </HStack>
-        </VStack>
-      </Container>
+          </Stack>
+        )}
+      </Flex>
     </Box>
   );
 }
