@@ -66,6 +66,12 @@ export const authOptions: NextAuthOptions = {
           );
         }
 
+        // Mettre à jour la date de dernière connexion
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLogin: new Date() },
+        });
+
         return {
           id: user.id,
           email: user.email,

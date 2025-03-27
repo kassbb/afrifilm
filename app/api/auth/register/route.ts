@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import * as z from "zod";
+import { z } from "zod";
 
 const prisma = new PrismaClient();
 
@@ -14,11 +14,18 @@ const registerSchema = z.object({
   accountType: z.enum(["USER", "CREATOR"], {
     errorMap: () => ({ message: "Type de compte invalide" }),
   }),
+  // Champs optionnels
+  name: z.string().optional(),
+  bio: z.string().optional(),
+  portfolio: z.string().url("Format d'URL invalide").nullish(),
+  identityDocument: z.string().nullish(), // URL de la pièce d'identité
 });
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    console.log("[API] POST /api/auth/register - Données reçues:", body);
 
     // Valider les données
     try {
@@ -30,9 +37,22 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+
+      return NextResponse.json(
+        { error: "Données d'inscription invalides" },
+        { status: 400 }
+      );
     }
 
-    const { email, password, accountType } = body;
+    const {
+      email,
+      password,
+      accountType,
+      name,
+      bio,
+      portfolio,
+      identityDocument,
+    } = body;
 
     // Vérifier si l'email existe déjà
     const existingUser = await prisma.user.findUnique({
@@ -54,12 +74,46 @@ export async function POST(request: NextRequest) {
       email,
       password: hashedPassword,
       role: accountType,
+      name,
+      // Ajouter des champs supplémentaires si disponibles
+      ...(bio && { bio }),
+      ...(portfolio && { portfolio }),
+      ...(identityDocument && { identityDocument }),
     };
 
     // Si c'est un créateur, définir isVerified à false
     if (accountType === "CREATOR") {
       userData.isVerified = false;
+
+      // S'assurer que bio est défini pour les créateurs
+      if (!bio && accountType === "CREATOR") {
+        return NextResponse.json(
+          { error: "Une biographie est requise pour les créateurs" },
+          { status: 400 }
+        );
+      }
+
+      // Pour les créateurs, une pièce d'identité est obligatoire
+      if (accountType === "CREATOR" && !identityDocument) {
+        return NextResponse.json(
+          { error: "Une pièce d'identité est requise pour les créateurs" },
+          { status: 400 }
+        );
+      }
+
+      // Si une pièce d'identité est fournie, l'ajouter aux données
+      if (identityDocument) {
+        userData.identityDocument = identityDocument;
+      }
     }
+
+    console.log("[API] POST /api/auth/register - Création d'utilisateur:", {
+      email,
+      accountType,
+      hasBio: !!bio,
+      hasPortfolio: !!portfolio,
+      hasIdentityDocument: !!identityDocument,
+    });
 
     // Créer l'utilisateur
     const user = await prisma.user.create({
@@ -69,15 +123,15 @@ export async function POST(request: NextRequest) {
     // Ne pas renvoyer le mot de passe
     const { password: _, ...userWithoutPassword } = user;
 
-    return NextResponse.json({
-      message:
-        accountType === "CREATOR"
-          ? "Compte créé avec succès. Un administrateur va examiner votre demande."
-          : "Compte créé avec succès",
-      user: userWithoutPassword,
-    });
+    return NextResponse.json(
+      {
+        message: "Utilisateur créé avec succès",
+        user: userWithoutPassword,
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    console.error("Erreur lors de l'inscription:", error);
+    console.error("[API] POST /api/auth/register - Erreur:", error);
     return NextResponse.json(
       { error: "Erreur lors de la création du compte" },
       { status: 500 }

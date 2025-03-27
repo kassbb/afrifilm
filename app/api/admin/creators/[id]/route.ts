@@ -36,58 +36,92 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log(`[API] GET /api/admin/creators/${params.id} - Début`);
+
     // Vérifier l'authentification et les permissions
     const auth = await verifyAdminAccess();
     if (!auth.authenticated) {
+      console.log(
+        `[API] GET /api/admin/creators/${params.id} - Erreur d'authentification:`,
+        auth.message
+      );
       return NextResponse.json({ error: auth.message }, { status: 401 });
     }
+
+    console.log(
+      `[API] GET /api/admin/creators/${params.id} - Authentification OK`
+    );
 
     const { id } = params;
 
     if (!id) {
-      return NextResponse.json(
-        { error: "ID du créateur requis" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "ID manquant" }, { status: 400 });
     }
 
-    // Récupérer le créateur avec ses contenus
+    // Récupérer les détails de base du créateur
     const creator = await prisma.user.findUnique({
-      where: {
-        id,
-        role: "CREATOR",
-      },
-      include: {
-        contents: {
-          include: {
-            film: true,
-            series: {
-              include: {
-                seasons: {
-                  include: {
-                    episodes: true,
-                  },
-                },
-              },
-            },
-          },
-        },
+      where: { id, role: "CREATOR" },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        bio: true,
+        isVerified: true,
+        createdAt: true,
       },
     });
 
     if (!creator) {
+      console.log(
+        `[API] GET /api/admin/creators/${params.id} - Créateur non trouvé`
+      );
       return NextResponse.json(
         { error: "Créateur non trouvé" },
         { status: 404 }
       );
     }
 
-    // Filtrer les informations sensibles
-    const { password, ...creatorData } = creator;
+    // Récupérer les champs additionnels portfolio et identityDocument
+    const additionalFields = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        portfolio: true,
+        identityDocument: true,
+      },
+    });
 
-    return NextResponse.json(creatorData);
+    // Récupérer les contenus du créateur
+    const contents = await prisma.content.findMany({
+      where: { creatorId: id },
+      select: { id: true },
+    });
+
+    console.log(`[API] GET /api/admin/creators/${params.id} - Créateur trouvé`);
+
+    // Calculer les ventes totales
+    const totalSales = await prisma.transaction.aggregate({
+      where: {
+        contentId: {
+          in: contents.map((content) => content.id),
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    // Renvoyer les données du créateur avec les statistiques
+    const creatorWithStats = {
+      ...creator,
+      portfolio: additionalFields?.portfolio || null,
+      identityDocument: additionalFields?.identityDocument || null,
+      contentCount: contents.length,
+      totalSales: totalSales._sum?.amount || 0,
+    };
+
+    return NextResponse.json(creatorWithStats);
   } catch (error) {
-    console.error("Erreur lors de la récupération du créateur:", error);
+    console.error(`[API] GET /api/admin/creators/[id] - Erreur:`, error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération du créateur" },
       { status: 500 }
@@ -96,77 +130,179 @@ export async function GET(
 }
 
 // PATCH /api/admin/creators/[id]
-// Mettre à jour le statut de vérification d'un créateur
+// Mettre à jour un créateur (vérification, etc.)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log(`[API] PATCH /api/admin/creators/${params.id} - Début`);
+
     // Vérifier l'authentification et les permissions
     const auth = await verifyAdminAccess();
     if (!auth.authenticated) {
+      console.log(
+        `[API] PATCH /api/admin/creators/${params.id} - Erreur d'authentification:`,
+        auth.message
+      );
       return NextResponse.json({ error: auth.message }, { status: 401 });
     }
 
+    console.log(
+      `[API] PATCH /api/admin/creators/${params.id} - Authentification OK`
+    );
+
     const { id } = params;
+    const body = await request.json();
+
+    console.log(
+      `[API] PATCH /api/admin/creators/${params.id} - Données reçues:`,
+      body
+    );
 
     if (!id) {
-      return NextResponse.json(
-        { error: "ID du créateur requis" },
-        { status: 400 }
-      );
-    }
-
-    // Récupérer les données de la requête
-    const body = await request.json();
-    const { isVerified } = body;
-
-    if (isVerified === undefined) {
-      return NextResponse.json(
-        { error: "Le statut de vérification est requis" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "ID manquant" }, { status: 400 });
     }
 
     // Vérifier si le créateur existe
     const existingCreator = await prisma.user.findUnique({
-      where: {
-        id,
-        role: "CREATOR",
-      },
+      where: { id, role: "CREATOR" },
     });
 
     if (!existingCreator) {
+      console.log(
+        `[API] PATCH /api/admin/creators/${params.id} - Créateur non trouvé`
+      );
       return NextResponse.json(
         { error: "Créateur non trouvé" },
         { status: 404 }
       );
     }
 
-    // Mettre à jour le statut de vérification
+    // Préparer les données à mettre à jour
+    const updateData: any = {};
+
+    // Mise à jour du statut de vérification
+    if (body.isVerified !== undefined) {
+      updateData.isVerified = body.isVerified;
+    }
+
+    // Autres champs à mettre à jour (si nécessaire)
+    if (body.name) updateData.name = body.name;
+    if (body.bio) updateData.bio = body.bio;
+    if (body.portfolio !== undefined) updateData.portfolio = body.portfolio;
+    if (body.identityDocument !== undefined)
+      updateData.identityDocument = body.identityDocument;
+
+    // Mettre à jour le créateur
+    console.log(
+      `[API] PATCH /api/admin/creators/${params.id} - Mise à jour avec:`,
+      updateData
+    );
+
     const updatedCreator = await prisma.user.update({
-      where: {
-        id,
-      },
-      data: {
-        isVerified,
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        bio: true,
+        isVerified: true,
+        createdAt: true,
       },
     });
 
-    // Filtrer les informations sensibles
-    const { password, ...creatorData } = updatedCreator;
+    // Récupérer les champs additionnels qui ne sont pas inclus dans le select
+    const additionalFields = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        portfolio: true,
+        identityDocument: true,
+      },
+    });
+
+    console.log(
+      `[API] PATCH /api/admin/creators/${params.id} - Mise à jour réussie`
+    );
 
     return NextResponse.json({
-      success: true,
-      message: isVerified
-        ? "Compte créateur vérifié avec succès"
-        : "Vérification du compte créateur annulée",
-      creator: creatorData,
+      message: "Créateur mis à jour avec succès",
+      creator: {
+        ...updatedCreator,
+        portfolio: additionalFields?.portfolio || null,
+        identityDocument: additionalFields?.identityDocument || null,
+      },
     });
   } catch (error) {
-    console.error("Erreur lors de la mise à jour du créateur:", error);
+    console.error(`[API] PATCH /api/admin/creators/[id] - Erreur:`, error);
     return NextResponse.json(
       { error: "Erreur lors de la mise à jour du créateur" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/admin/creators/[id]
+// Supprimer un créateur
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    console.log(`[API] DELETE /api/admin/creators/${params.id} - Début`);
+
+    // Vérifier l'authentification et les permissions
+    const auth = await verifyAdminAccess();
+    if (!auth.authenticated) {
+      console.log(
+        `[API] DELETE /api/admin/creators/${params.id} - Erreur d'authentification:`,
+        auth.message
+      );
+      return NextResponse.json({ error: auth.message }, { status: 401 });
+    }
+
+    console.log(
+      `[API] DELETE /api/admin/creators/${params.id} - Authentification OK`
+    );
+
+    const { id } = params;
+
+    if (!id) {
+      return NextResponse.json({ error: "ID manquant" }, { status: 400 });
+    }
+
+    // Vérifier si le créateur existe
+    const existingCreator = await prisma.user.findUnique({
+      where: { id, role: "CREATOR" },
+    });
+
+    if (!existingCreator) {
+      console.log(
+        `[API] DELETE /api/admin/creators/${params.id} - Créateur non trouvé`
+      );
+      return NextResponse.json(
+        { error: "Créateur non trouvé" },
+        { status: 404 }
+      );
+    }
+
+    // Supprimer le créateur
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    console.log(
+      `[API] DELETE /api/admin/creators/${params.id} - Suppression réussie`
+    );
+
+    return NextResponse.json({
+      message: "Créateur supprimé avec succès",
+    });
+  } catch (error) {
+    console.error(`[API] DELETE /api/admin/creators/[id] - Erreur:`, error);
+    return NextResponse.json(
+      { error: "Erreur lors de la suppression du créateur" },
       { status: 500 }
     );
   }

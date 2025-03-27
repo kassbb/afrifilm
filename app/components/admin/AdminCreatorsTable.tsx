@@ -38,6 +38,8 @@ import {
   Heading,
   Divider,
   Select,
+  Link,
+  Image,
 } from "@chakra-ui/react";
 import { useState, useEffect } from "react";
 import {
@@ -47,6 +49,7 @@ import {
   FiSearch,
   FiEye,
   FiMail,
+  FiFile,
 } from "react-icons/fi";
 import NextLink from "next/link";
 
@@ -54,10 +57,14 @@ import NextLink from "next/link";
 interface Creator {
   id: string;
   email: string;
+  name: string;
   isVerified: boolean;
   createdAt: string;
   contentCount: number;
   totalSales: number;
+  bio?: string;
+  portfolio?: string;
+  identityDocument?: string;
 }
 
 export default function AdminCreatorsTable() {
@@ -72,6 +79,7 @@ export default function AdminCreatorsTable() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [newVerificationStatus, setNewVerificationStatus] = useState(false);
+  const [viewMode, setViewMode] = useState<"verify" | "details">("verify");
 
   const toast = useToast();
 
@@ -174,6 +182,13 @@ export default function AdminCreatorsTable() {
   const openVerificationModal = (creator: Creator) => {
     setSelectedCreator(creator);
     setNewVerificationStatus(!creator.isVerified);
+    setViewMode("verify");
+    onOpen();
+  };
+
+  const openDetailsModal = (creator: Creator) => {
+    setSelectedCreator(creator);
+    setViewMode("details");
     onOpen();
   };
 
@@ -244,7 +259,6 @@ export default function AdminCreatorsTable() {
         </InputGroup>
 
         <Select
-          placeholder="Statut"
           value={filter.status}
           onChange={(e) => setFilter({ ...filter, status: e.target.value })}
           maxW={{ md: "200px" }}
@@ -262,144 +276,375 @@ export default function AdminCreatorsTable() {
 
       {/* Tableau des créateurs */}
       <Box overflowX="auto">
-        <Table variant="simple" colorScheme="gray">
-          <Thead>
+        <Table variant="simple" size="md">
+          <Thead bg="gray.800">
             <Tr>
-              <Th color="gray.400">Email</Th>
+              <Th color="gray.400">Créateur</Th>
               <Th color="gray.400">Statut</Th>
-              <Th color="gray.400">Date d'inscription</Th>
-              <Th color="gray.400">Contenus</Th>
-              <Th color="gray.400">Ventes</Th>
-              <Th color="gray.400">Actions</Th>
+              <Th color="gray.400" isNumeric>
+                Films
+              </Th>
+              <Th color="gray.400" isNumeric>
+                Ventes
+              </Th>
+              <Th color="gray.400">Inscription</Th>
+              <Th color="gray.400" textAlign="right">
+                Actions
+              </Th>
             </Tr>
           </Thead>
           <Tbody>
-            {filteredCreators.map((creator) => (
-              <Tr key={creator.id} _hover={{ bg: "gray.700" }}>
-                <Td color="white">{creator.email}</Td>
-                <Td>
-                  <Badge colorScheme={creator.isVerified ? "green" : "yellow"}>
-                    {creator.isVerified ? "Vérifié" : "Non vérifié"}
-                  </Badge>
-                </Td>
-                <Td color="white">
-                  {new Date(creator.createdAt).toLocaleDateString("fr-FR")}
-                </Td>
-                <Td color="white">{creator.contentCount}</Td>
-                <Td color="white">{creator.totalSales.toFixed(2)} €</Td>
-                <Td>
-                  <Menu>
-                    <MenuButton
-                      as={IconButton}
-                      icon={<FiMoreVertical />}
-                      variant="ghost"
-                      size="sm"
-                      colorScheme="gray"
-                      aria-label="Options"
-                    />
-                    <MenuList bg="gray.800" borderColor="gray.700">
-                      <NextLink href={`/admin/creators/${creator.id}`} passHref>
-                        <MenuItem
-                          icon={<FiEye />}
-                          _hover={{ bg: "gray.700" }}
-                          color="white"
-                        >
-                          Profil
-                        </MenuItem>
-                      </NextLink>
-
-                      <MenuItem
-                        icon={creator.isVerified ? <FiX /> : <FiCheck />}
-                        onClick={() => openVerificationModal(creator)}
-                        _hover={{ bg: "gray.700" }}
-                        color={creator.isVerified ? "red.400" : "green.400"}
-                      >
-                        {creator.isVerified
-                          ? "Retirer vérification"
-                          : "Vérifier"}
-                      </MenuItem>
-
-                      <MenuItem
-                        icon={<FiMail />}
-                        _hover={{ bg: "gray.700" }}
-                        color="blue.400"
-                      >
-                        Contacter
-                      </MenuItem>
-                    </MenuList>
-                  </Menu>
+            {filteredCreators.length === 0 ? (
+              <Tr>
+                <Td colSpan={6} textAlign="center" py={10}>
+                  <Text>Aucun créateur trouvé</Text>
                 </Td>
               </Tr>
-            ))}
+            ) : (
+              filteredCreators.map((creator) => (
+                <Tr key={creator.id}>
+                  <Td>
+                    <VStack align="start" spacing={1}>
+                      <Text fontWeight="medium">
+                        {creator.name || "Sans nom"}
+                      </Text>
+                      <Text fontSize="sm" color="gray.500">
+                        {creator.email}
+                      </Text>
+                    </VStack>
+                  </Td>
+                  <Td>
+                    <Badge
+                      colorScheme={creator.isVerified ? "green" : "yellow"}
+                    >
+                      {creator.isVerified ? "Vérifié" : "En attente"}
+                    </Badge>
+                  </Td>
+                  <Td isNumeric>{creator.contentCount}</Td>
+                  <Td isNumeric>{`${creator.totalSales.toFixed(2)} €`}</Td>
+                  <Td>{new Date(creator.createdAt).toLocaleDateString()}</Td>
+                  <Td textAlign="right">
+                    <HStack spacing={1} justify="flex-end">
+                      <IconButton
+                        aria-label="Voir les détails"
+                        icon={<FiEye />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openDetailsModal(creator)}
+                      />
+                      <IconButton
+                        aria-label={
+                          creator.isVerified
+                            ? "Retirer la vérification"
+                            : "Vérifier ce créateur"
+                        }
+                        icon={creator.isVerified ? <FiX /> : <FiCheck />}
+                        size="sm"
+                        variant="ghost"
+                        colorScheme={creator.isVerified ? "red" : "green"}
+                        onClick={() => openVerificationModal(creator)}
+                      />
+                      <IconButton
+                        aria-label="Envoyer un email"
+                        icon={<FiMail />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleSendEmail(creator)}
+                      />
+                    </HStack>
+                  </Td>
+                </Tr>
+              ))
+            )}
           </Tbody>
         </Table>
       </Box>
 
-      {/* Modal de vérification */}
-      <Modal isOpen={isOpen} onClose={onClose}>
+      {/* Modal de vérification/détails */}
+      <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
         <ModalContent bg="gray.800" color="white">
           <ModalHeader>
-            {newVerificationStatus
-              ? "Vérifier le créateur"
-              : "Retirer la vérification"}
+            {viewMode === "verify"
+              ? `${
+                  newVerificationStatus ? "Vérifier" : "Annuler la vérification"
+                }`
+              : "Détails du créateur"}
           </ModalHeader>
           <ModalCloseButton />
+
           <ModalBody>
             {selectedCreator && (
-              <VStack spacing={4} align="stretch">
-                <Text>
-                  {newVerificationStatus
-                    ? `Êtes-vous sûr de vouloir vérifier le créateur "${selectedCreator.email}" ?`
-                    : `Êtes-vous sûr de vouloir retirer la vérification de "${selectedCreator.email}" ?`}
-                </Text>
+              <>
+                {viewMode === "details" ? (
+                  <VStack align="stretch" spacing={4}>
+                    <Box>
+                      <Heading size="sm" mb={2}>
+                        Informations générales
+                      </Heading>
+                      <HStack>
+                        <Text fontWeight="bold">Nom:</Text>
+                        <Text>{selectedCreator.name || "Non spécifié"}</Text>
+                      </HStack>
+                      <HStack>
+                        <Text fontWeight="bold">Email:</Text>
+                        <Text>{selectedCreator.email}</Text>
+                      </HStack>
+                      <HStack>
+                        <Text fontWeight="bold">Statut:</Text>
+                        <Badge
+                          colorScheme={
+                            selectedCreator.isVerified ? "green" : "yellow"
+                          }
+                        >
+                          {selectedCreator.isVerified
+                            ? "Vérifié"
+                            : "En attente"}
+                        </Badge>
+                      </HStack>
+                      <HStack>
+                        <Text fontWeight="bold">Date d'inscription:</Text>
+                        <Text>
+                          {new Date(
+                            selectedCreator.createdAt
+                          ).toLocaleDateString()}
+                        </Text>
+                      </HStack>
+                    </Box>
 
-                <Divider />
+                    <Divider />
 
-                <Box>
-                  <Heading size="sm" mb={2}>
-                    Informations du créateur
-                  </Heading>
-                  <HStack>
-                    <Text fontWeight="bold">Email:</Text>
-                    <Text>{selectedCreator.email}</Text>
-                  </HStack>
-                  <HStack>
-                    <Text fontWeight="bold">Contenu publié:</Text>
-                    <Text>{selectedCreator.contentCount}</Text>
-                  </HStack>
-                  <HStack>
-                    <Text fontWeight="bold">Ventes totales:</Text>
-                    <Text>{selectedCreator.totalSales.toFixed(2)} €</Text>
-                  </HStack>
-                </Box>
+                    <Box>
+                      <Heading size="sm" mb={2}>
+                        Biographie
+                      </Heading>
+                      <Text>
+                        {selectedCreator.bio || "Aucune biographie fournie"}
+                      </Text>
+                    </Box>
 
-                <FormControl display="flex" alignItems="center">
-                  <FormLabel htmlFor="verification-status" mb="0">
-                    {newVerificationStatus
-                      ? "Vérifier ce créateur"
-                      : "Retirer la vérification"}
-                  </FormLabel>
-                  <Switch
-                    id="verification-status"
-                    isChecked={newVerificationStatus}
-                    onChange={(e) => setNewVerificationStatus(e.target.checked)}
-                    colorScheme="red"
-                  />
-                </FormControl>
-              </VStack>
+                    {selectedCreator.portfolio && (
+                      <>
+                        <Divider />
+                        <Box>
+                          <Heading size="sm" mb={2}>
+                            Portfolio
+                          </Heading>
+                          <Link
+                            href={selectedCreator.portfolio}
+                            isExternal
+                            color="red.400"
+                          >
+                            {selectedCreator.portfolio}
+                          </Link>
+                        </Box>
+                      </>
+                    )}
+
+                    <Divider />
+
+                    <Box>
+                      <Heading size="sm" mb={2}>
+                        Statistiques
+                      </Heading>
+                      <HStack>
+                        <Text fontWeight="bold">Contenu publié:</Text>
+                        <Text>{selectedCreator.contentCount} films/séries</Text>
+                      </HStack>
+                      <HStack>
+                        <Text fontWeight="bold">Ventes totales:</Text>
+                        <Text>{selectedCreator.totalSales.toFixed(2)} €</Text>
+                      </HStack>
+                    </Box>
+
+                    {selectedCreator.identityDocument && (
+                      <>
+                        <Divider />
+                        <Box>
+                          <Heading size="sm" mb={2}>
+                            Pièce d'identité
+                          </Heading>
+                          <VStack align="start" spacing={2}>
+                            <Link
+                              href={selectedCreator.identityDocument}
+                              isExternal
+                              color="red.400"
+                            >
+                              Voir la pièce d'identité
+                            </Link>
+
+                            {/* Prévisualiser si c'est une image */}
+                            {selectedCreator.identityDocument.match(
+                              /\.(jpeg|jpg|png|gif)$/i
+                            ) && (
+                              <Box
+                                mt={2}
+                                border="1px solid"
+                                borderColor="gray.600"
+                                borderRadius="md"
+                                overflow="hidden"
+                              >
+                                <Image
+                                  src={selectedCreator.identityDocument}
+                                  alt="Pièce d'identité"
+                                  maxH="200px"
+                                  objectFit="contain"
+                                />
+                              </Box>
+                            )}
+
+                            {/* Si c'est un PDF, ajouter un bouton spécifique */}
+                            {selectedCreator.identityDocument.endsWith(
+                              ".pdf"
+                            ) && (
+                              <Button
+                                as="a"
+                                href={selectedCreator.identityDocument}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                leftIcon={<FiFile />}
+                                variant="outline"
+                                size="sm"
+                                mt={2}
+                              >
+                                Ouvrir le PDF
+                              </Button>
+                            )}
+                          </VStack>
+                        </Box>
+                      </>
+                    )}
+
+                    {!selectedCreator.identityDocument && (
+                      <>
+                        <Divider />
+                        <Box>
+                          <Heading size="sm" mb={2}>
+                            Pièce d'identité
+                          </Heading>
+                          <Text color="yellow.400">
+                            Aucune pièce d'identité n'a été fournie par ce
+                            créateur.
+                          </Text>
+                        </Box>
+                      </>
+                    )}
+
+                    <Button
+                      leftIcon={
+                        selectedCreator.isVerified ? <FiX /> : <FiCheck />
+                      }
+                      colorScheme={selectedCreator.isVerified ? "red" : "green"}
+                      onClick={() => {
+                        setViewMode("verify");
+                        setNewVerificationStatus(!selectedCreator.isVerified);
+                      }}
+                    >
+                      {selectedCreator.isVerified
+                        ? "Retirer la vérification"
+                        : "Vérifier ce créateur"}
+                    </Button>
+                  </VStack>
+                ) : (
+                  <>
+                    <Text mb={4}>
+                      {newVerificationStatus
+                        ? `Vous êtes sur le point de vérifier le compte créateur de ${
+                            selectedCreator.name || selectedCreator.email
+                          }. Cela lui permettra de publier du contenu sur la plateforme.`
+                        : `Vous êtes sur le point de retirer la vérification du compte créateur de ${
+                            selectedCreator.name || selectedCreator.email
+                          }. Cela l'empêchera de publier du nouveau contenu.`}
+                    </Text>
+
+                    {selectedCreator.identityDocument && (
+                      <Box mb={4} p={3} bg="gray.700" borderRadius="md">
+                        <Heading size="sm" mb={2}>
+                          Vérification de la pièce d'identité
+                        </Heading>
+
+                        {/* Prévisualiser si c'est une image */}
+                        {selectedCreator.identityDocument.match(
+                          /\.(jpeg|jpg|png|gif)$/i
+                        ) && (
+                          <Box
+                            mt={2}
+                            border="1px solid"
+                            borderColor="gray.600"
+                            borderRadius="md"
+                            overflow="hidden"
+                            mb={3}
+                          >
+                            <Image
+                              src={selectedCreator.identityDocument}
+                              alt="Pièce d'identité"
+                              maxH="200px"
+                              objectFit="contain"
+                            />
+                          </Box>
+                        )}
+
+                        {/* Si c'est un PDF, ajouter un bouton spécifique */}
+                        {selectedCreator.identityDocument.endsWith(".pdf") && (
+                          <Button
+                            as="a"
+                            href={selectedCreator.identityDocument}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            leftIcon={<FiFile />}
+                            variant="outline"
+                            size="sm"
+                            mb={3}
+                          >
+                            Ouvrir le PDF
+                          </Button>
+                        )}
+
+                        <Text fontSize="sm" color="yellow.400">
+                          Assurez-vous que la pièce d'identité est valide avant
+                          de vérifier le créateur.
+                        </Text>
+                      </Box>
+                    )}
+
+                    <FormControl display="flex" alignItems="center" mb={4}>
+                      <FormLabel mb="0">
+                        {newVerificationStatus
+                          ? "Vérifier ce créateur"
+                          : "Retirer la vérification"}
+                      </FormLabel>
+                      <Switch
+                        isChecked={newVerificationStatus}
+                        onChange={(e) =>
+                          setNewVerificationStatus(e.target.checked)
+                        }
+                        colorScheme="red"
+                      />
+                    </FormControl>
+                  </>
+                )}
+              </>
             )}
           </ModalBody>
+
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              Annuler
-            </Button>
-            <Button
-              colorScheme={newVerificationStatus ? "green" : "red"}
-              onClick={handleUpdateVerification}
-            >
-              Confirmer
-            </Button>
+            {viewMode === "verify" ? (
+              <>
+                <Button variant="ghost" mr={3} onClick={onClose}>
+                  Annuler
+                </Button>
+                <Button
+                  colorScheme={newVerificationStatus ? "green" : "red"}
+                  onClick={handleUpdateVerification}
+                >
+                  Confirmer
+                </Button>
+              </>
+            ) : (
+              <Button colorScheme="blue" onClick={onClose}>
+                Fermer
+              </Button>
+            )}
           </ModalFooter>
         </ModalContent>
       </Modal>

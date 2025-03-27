@@ -107,15 +107,19 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log(`[API] PATCH /api/admin/users/${params.id} - Début`);
+    
     // Vérifier l'authentification et les permissions
     const auth = await verifyAdminAccess();
     if (!auth.authenticated) {
+      console.log(`[API] PATCH /api/admin/users/${params.id} - Erreur d'authentification:`, auth.message);
       return NextResponse.json({ error: auth.message }, { status: 401 });
     }
 
     const { id } = params;
 
     if (!id) {
+      console.log(`[API] PATCH /api/admin/users/${params.id} - ID manquant`);
       return NextResponse.json(
         { error: "ID de l'utilisateur requis" },
         { status: 400 }
@@ -124,7 +128,9 @@ export async function PATCH(
 
     // Récupérer les données de la requête
     const body = await request.json();
-    const { name, email, role, isVerified } = body;
+    const { name, email, role, isVerified, isActive } = body;
+    
+    console.log(`[API] PATCH /api/admin/users/${id} - Données:`, { name, email, role, isVerified, isActive });
 
     // Vérifier si l'utilisateur existe
     const existingUser = await prisma.user.findUnique({
@@ -134,6 +140,7 @@ export async function PATCH(
     });
 
     if (!existingUser) {
+      console.log(`[API] PATCH /api/admin/users/${id} - Utilisateur non trouvé`);
       return NextResponse.json(
         { error: "Utilisateur non trouvé" },
         { status: 404 }
@@ -179,24 +186,67 @@ export async function PATCH(
       updateData.isVerified = isVerified;
     }
 
-    // Mettre à jour l'utilisateur
-    const updatedUser = await prisma.user.update({
-      where: {
-        id,
-      },
-      data: updateData,
-    });
+    // Mettre à jour le statut actif/inactif (ne peut pas être appliqué aux admins)
+    if (isActive !== undefined && existingUser.role !== "ADMIN") {
+      updateData.isActive = isActive;
+    }
+    
+    console.log(`[API] PATCH /api/admin/users/${id} - Données de mise à jour:`, updateData);
 
-    // Filtrer les informations sensibles
-    const { password, ...userData } = updatedUser;
+    // S'assurer que les champs existent dans le schéma
+    try {
+      // Mettre à jour l'utilisateur
+      const updatedUser = await prisma.user.update({
+        where: {
+          id,
+        },
+        data: updateData,
+      });
 
-    return NextResponse.json({
-      success: true,
-      message: "Utilisateur mis à jour avec succès",
-      user: userData,
-    });
+      // Filtrer les informations sensibles
+      const { password, ...userData } = updatedUser;
+      
+      console.log(`[API] PATCH /api/admin/users/${id} - Mise à jour réussie`);
+
+      return NextResponse.json({
+        success: true,
+        message: "Utilisateur mis à jour avec succès",
+        user: userData,
+      });
+    } catch (prismaError) {
+      console.error(`[API] PATCH /api/admin/users/${id} - Erreur Prisma:`, prismaError);
+      
+      // Si l'erreur est liée à un champ manquant
+      if (prismaError instanceof Error && 
+          prismaError.message.includes("Unknown field")) {
+        
+        // Supprimer les champs problématiques et réessayer
+        const safeUpdateData = { ...updateData };
+        if (prismaError.message.includes("isActive")) delete safeUpdateData.isActive;
+        if (prismaError.message.includes("lastLogin")) delete safeUpdateData.lastLogin;
+        
+        if (Object.keys(safeUpdateData).length > 0) {
+          console.log(`[API] PATCH /api/admin/users/${id} - Tentative avec données sécurisées:`, safeUpdateData);
+          
+          const updatedUser = await prisma.user.update({
+            where: { id },
+            data: safeUpdateData,
+          });
+          
+          const { password, ...userData } = updatedUser;
+          
+          return NextResponse.json({
+            success: true,
+            message: "Utilisateur partiellement mis à jour avec succès (certains champs ignorés)",
+            user: userData,
+          });
+        }
+      }
+      
+      throw prismaError;
+    }
   } catch (error) {
-    console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
+    console.error(`[API] PATCH /api/admin/users/${params.id} - Erreur:`, error);
     return NextResponse.json(
       { error: "Erreur lors de la mise à jour de l'utilisateur" },
       { status: 500 }
