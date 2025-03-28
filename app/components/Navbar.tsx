@@ -18,6 +18,7 @@ import {
   Stack,
   Text,
   Avatar,
+  MenuDivider,
 } from "@chakra-ui/react";
 import { HamburgerIcon, CloseIcon, ChevronDownIcon } from "@chakra-ui/icons";
 
@@ -27,8 +28,24 @@ export default function Navbar() {
   const bgColor = useColorModeValue("gray.900", "gray.900");
   const borderColor = useColorModeValue("gray.800", "gray.800");
 
+  // Indicateur visuel de l'état de session
+  const sessionStatusColor =
+    status === "loading"
+      ? "yellow.400"
+      : status === "authenticated"
+      ? "green.400"
+      : "red.400";
+
   return (
-    <Box bg={bgColor} px={4} borderBottom="1px" borderColor={borderColor} position="fixed" width="100%" zIndex={1000}>
+    <Box
+      bg={bgColor}
+      px={4}
+      borderBottom="1px"
+      borderColor={borderColor}
+      position="fixed"
+      width="100%"
+      zIndex={1000}
+    >
       <Container maxW="container.xl">
         <Flex h={16} alignItems="center" justifyContent="space-between">
           <IconButton
@@ -78,75 +95,91 @@ export default function Navbar() {
             {status === "loading" ? (
               <Text color="gray.400">Chargement...</Text>
             ) : session ? (
-              <Menu>
-                <MenuButton
-                  as={Button}
-                  rightIcon={<ChevronDownIcon />}
-                  bg="transparent"
-                  color="white"
-                  _hover={{ bg: "gray.800" }}
-                  _active={{ bg: "gray.800" }}
-                >
-                  <HStack>
-                    <Avatar
-                      size="sm"
-                      name={session.user.name || session.user.email}
-                      src={session.user.image || undefined}
-                    />
-                    <Box display={{ base: "none", md: "block" }}>
-                      <Text fontWeight="medium">
-                        {session.user.name || session.user.email}
-                      </Text>
-                    </Box>
-                  </HStack>
-                </MenuButton>
-                <MenuList bg="gray.800" borderColor="gray.700">
-                  <Link href="/profile" passHref>
-                    <MenuItem as="a" bg="gray.800" _hover={{ bg: "gray.700" }}>
-                      Mon profil
-                    </MenuItem>
-                  </Link>
-                  {session.user.role === "CREATOR" && (
-                    <Link href="/creator/dashboard" passHref>
-                      <MenuItem
-                        as="a"
-                        bg="gray.800"
-                        _hover={{ bg: "gray.700" }}
-                      >
-                        Espace créateur
-                      </MenuItem>
-                    </Link>
-                  )}
-                  {session.user.role === "ADMIN" && (
-                    <Link href="/admin/dashboard" passHref>
-                      <MenuItem
-                        as="a"
-                        bg="gray.800"
-                        _hover={{ bg: "gray.700" }}
-                      >
-                        Administration
-                      </MenuItem>
-                    </Link>
-                  )}
-                  <MenuItem
-                    bg="gray.800"
-                    _hover={{ bg: "gray.700" }}
-                    onClick={() => signOut({ callbackUrl: "/" })}
+              <>
+                <Box
+                  w="10px"
+                  h="10px"
+                  borderRadius="full"
+                  bg={sessionStatusColor}
+                  mr={2}
+                  title={`Session: ${status}, User: ${
+                    session?.user?.email || "none"
+                  }`}
+                />
+                <Menu>
+                  <MenuButton
+                    as={Button}
+                    rightIcon={<ChevronDownIcon />}
+                    variant="ghost"
+                    colorScheme="whiteAlpha"
                   >
-                    Déconnexion
-                  </MenuItem>
-                </MenuList>
-              </Menu>
+                    <HStack>
+                      <Avatar
+                        size="sm"
+                        name={session.user.name || session.user.email}
+                        src={session.user.image || undefined}
+                      />
+                      <Box display={{ base: "none", md: "block" }}>
+                        <Text fontWeight="medium">
+                          {session.user.name || session.user.email}
+                        </Text>
+                      </Box>
+                    </HStack>
+                  </MenuButton>
+                  <MenuList bg="gray.800">
+                    <Link href="/user/profile" passHref>
+                      <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }}>
+                        Mon profil
+                      </MenuItem>
+                    </Link>
+                    <Link href="/user/purchases" passHref>
+                      <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }}>
+                        Mes achats
+                      </MenuItem>
+                    </Link>
+                    <Link href="/user/favorites" passHref>
+                      <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }}>
+                        Favoris
+                      </MenuItem>
+                    </Link>
+                    {session.user.role === "CREATOR" && (
+                      <Link href="/creator/dashboard" passHref>
+                        <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }}>
+                          Espace créateur
+                        </MenuItem>
+                      </Link>
+                    )}
+                    {session.user.role === "ADMIN" && (
+                      <Link href="/admin/dashboard" passHref>
+                        <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }}>
+                          Administration
+                        </MenuItem>
+                      </Link>
+                    )}
+                    <MenuDivider />
+                    <MenuItem
+                      bg="gray.800"
+                      _hover={{ bg: "gray.700" }}
+                      onClick={() => signOut()}
+                    >
+                      Déconnexion
+                    </MenuItem>
+                  </MenuList>
+                </Menu>
+              </>
             ) : (
               <>
+                <Box
+                  w="10px"
+                  h="10px"
+                  borderRadius="full"
+                  bg={sessionStatusColor}
+                  mr={2}
+                  title={`Session: ${status}`}
+                />
                 <Link href="/auth/login" passHref>
-                  <Button variant="ghost" colorScheme="red" size="sm" mr={2}>
+                  <Button colorScheme="red" variant="solid">
                     Connexion
-                  </Button>
-                </Link>
-                <Link href="/auth/register" passHref>
-                  <Button colorScheme="red" size="sm">
-                    Inscription
                   </Button>
                 </Link>
               </>
@@ -180,8 +213,9 @@ export default function Navbar() {
                   <Link href="/auth/login" passHref>
                     <Text
                       color="red.400"
-                      _hover={{ color: "red.500" }}
-                      cursor="pointer"
+                      _hover={{ color: "red.300" }}
+                      fontWeight="medium"
+                      mb={2}
                     >
                       Connexion
                     </Text>
@@ -189,8 +223,8 @@ export default function Navbar() {
                   <Link href="/auth/register" passHref>
                     <Text
                       color="red.400"
-                      _hover={{ color: "red.500" }}
-                      cursor="pointer"
+                      _hover={{ color: "red.300" }}
+                      fontWeight="medium"
                     >
                       Inscription
                     </Text>

@@ -8,21 +8,21 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  password     String
-  role         Role          @default(USER)
-  isVerified   Boolean       @default(false)
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  lastLogin    DateTime?
-  name         String?
-  avatar       String?
-  bio          String?
-  portfolio    String?       // URL vers le portfolio du créateur
-  identityDocument String?   // URL vers la pièce d'identité stockée
-  contents     Content[]
-  transactions Transaction[]
+  id               String        @id @default(uuid())
+  email            String        @unique
+  password         String
+  role             Role          @default(USER)
+  isVerified       Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  name             String?
+  avatar           String?
+  bio              String?
+  isActive         Boolean       @default(true)
+  lastLogin        DateTime?
+  identityDocument String?
+  portfolio        String?
+  contents         Content[]
+  transactions     Transaction[]
 }
 
 model Content {

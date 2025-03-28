@@ -1,4 +1,4 @@
- 'use client';
+"use client";
 
 import {
   FormControl,
@@ -6,7 +6,7 @@ import {
   FormErrorMessage,
   Select,
   useColorModeValue,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
 
 interface Option {
   value: string;
@@ -32,9 +32,9 @@ export default function FormSelect({
   onChange,
   required = false,
 }: FormSelectProps) {
-  const bgColor = useColorModeValue('gray.800', 'gray.700');
-  const textColor = useColorModeValue('white', 'white');
-  const borderColor = useColorModeValue('gray.600', 'gray.500');
+  const bgColor = useColorModeValue("gray.800", "gray.700");
+  const textColor = useColorModeValue("white", "white");
+  const borderColor = useColorModeValue("gray.600", "gray.500");
 
   return (
     <FormControl isInvalid={!!error}>
@@ -47,8 +47,9 @@ export default function FormSelect({
         bg={bgColor}
         color={textColor}
         borderColor={borderColor}
-        _hover={{ borderColor: 'gray.500' }}
-        _focus={{ borderColor: 'brand.500' }}
+        _hover={{ borderColor: "gray.500" }}
+        _focus={{ borderColor: "brand.500" }}
+        title={label}
       >
         <option value="" disabled>
           Sélectionner une option

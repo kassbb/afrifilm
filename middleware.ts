@@ -1,47 +1,67 @@
-import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import { withAuth } from "next-auth/middleware";
+import { getToken } from "next-auth/jwt";
+import type { NextRequest } from "next/server";
 
 export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const isAuth = !!token;
-    const isAuthPage = req.nextUrl.pathname.startsWith("/auth");
-    const isCreatorPage = req.nextUrl.pathname.startsWith("/creator");
-    const isAdminPage = req.nextUrl.pathname.startsWith("/admin");
+  async function middleware(req: NextRequest) {
+    const token = await getToken({ req, secret: process.env.JWT_SECRET });
+    const isAuthenticated = !!token;
 
-    if (isAuthPage) {
-      if (isAuth) {
-        return NextResponse.redirect(new URL("/", req.url));
-      }
-      return null;
+    // Routes protégées qui nécessitent une authentification
+    const isAuthRoute =
+      req.nextUrl.pathname.startsWith("/dashboard") ||
+      req.nextUrl.pathname.startsWith("/profile") ||
+      req.nextUrl.pathname.startsWith("/creator");
+
+    // Pages d'authentification
+    const isLoginPage = req.nextUrl.pathname.startsWith("/auth/login");
+    const isRegisterPage = req.nextUrl.pathname.startsWith("/auth/register");
+
+    // API endpoints de vérification d'authentification
+    const isAuthVerifyEndpoint = req.nextUrl.pathname === "/api/auth/verify";
+    const isAuthSessionEndpoint = req.nextUrl.pathname === "/api/auth/session";
+
+    // Pour les pages d'authentification, rediriger vers le dashboard si l'utilisateur est déjà connecté
+    if ((isLoginPage || isRegisterPage) && isAuthenticated) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
-    if (!isAuth) {
-      let from = req.nextUrl.pathname;
-      if (req.nextUrl.search) {
-        from += req.nextUrl.search;
-      }
-
+    // Pour les routes protégées, rediriger vers la page de connexion si l'utilisateur n'est pas connecté
+    if (isAuthRoute && !isAuthenticated) {
       return NextResponse.redirect(
-        new URL(`/auth/login?from=${encodeURIComponent(from)}`, req.url)
+        new URL(
+          `/auth/login?callbackUrl=${encodeURIComponent(req.url)}`,
+          req.url
+        )
       );
     }
 
-    if (isCreatorPage && token.role !== "CREATOR") {
-      return NextResponse.redirect(new URL("/", req.url));
+    // Ajouter des en-têtes pour empêcher la mise en cache des endpoints d'authentification
+    if (isAuthVerifyEndpoint || isAuthSessionEndpoint) {
+      const response = NextResponse.next();
+      response.headers.set(
+        "Cache-Control",
+        "no-store, max-age=0, must-revalidate"
+      );
+      response.headers.set("Pragma", "no-cache");
+      response.headers.set("Expires", "0");
+      return response;
     }
 
-    if (isAdminPage && token.role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/", req.url));
-    }
-
-    return null;
+    return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token, req }) => {
-        const isAuthPage = req.nextUrl.pathname.startsWith("/auth");
-        if (isAuthPage) {
+      // Autoriser l'accès à l'API d'authentification sans authentification
+      authorized: ({ req, token }) => {
+        if (
+          req.nextUrl.pathname.startsWith("/api/auth") ||
+          req.nextUrl.pathname.startsWith("/auth") ||
+          (!req.nextUrl.pathname.startsWith("/dashboard") &&
+            !req.nextUrl.pathname.startsWith("/profile") &&
+            !req.nextUrl.pathname.startsWith("/creator"))
+        ) {
           return true;
         }
         return !!token;
@@ -50,11 +70,14 @@ export default withAuth(
   }
 );
 
+// Configuration du middleware - définir les chemins où le middleware sera appliqué
 export const config = {
   matcher: [
-    "/creator/:path*",
-    "/admin/:path*",
-    "/auth/:path*",
+    "/dashboard/:path*",
     "/profile/:path*",
+    "/creator/:path*",
+    "/auth/:path*",
+    "/api/auth/verify",
+    "/api/auth/session",
   ],
 };

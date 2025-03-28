@@ -1,33 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
 // GET /api/contents/[id]
-// Route publique pour récupérer un contenu spécifique
+// Récupérer les détails d'un contenu spécifique (film ou série)
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
+    console.log(`[API] GET /api/contents/${params.id} - Début`);
 
-    if (!id) {
-      return NextResponse.json(
-        { error: "ID du contenu manquant" },
-        { status: 400 }
-      );
-    }
+    const { id } = params;
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
 
+    // Récupérer le contenu avec tous les détails nécessaires
     const content = await prisma.content.findUnique({
-      where: { id },
+      where: {
+        id,
+        isApproved: true, // Uniquement les contenus approuvés
+      },
       include: {
         film: true,
         serie: {
           include: {
             seasons: {
+              orderBy: {
+                number: "asc",
+              },
               include: {
-                episodes: true,
+                episodes: {
+                  orderBy: {
+                    number: "asc",
+                  },
+                },
               },
             },
           },
@@ -35,30 +45,92 @@ export async function GET(
         creator: {
           select: {
             id: true,
-            email: true,
+            name: true,
+            avatar: true,
           },
         },
       },
     });
 
     if (!content) {
+      console.log(
+        `[API] GET /api/contents/${id} - Contenu non trouvé ou non approuvé`
+      );
       return NextResponse.json(
-        { error: "Contenu non trouvé" },
+        { error: "Contenu non trouvé ou non approuvé" },
         { status: 404 }
       );
     }
 
-    // Vérifier si le contenu est approuvé (sauf si c'est une API admin)
-    if (!content.isApproved) {
-      return NextResponse.json(
-        { error: "Ce contenu n'est pas disponible" },
-        { status: 403 }
-      );
+    // Vérifier si l'utilisateur a acheté ce contenu
+    let hasPurchased = false;
+    if (userId) {
+      const transaction = await prisma.transaction.findFirst({
+        where: {
+          userId,
+          contentId: id,
+          isPaid: true,
+        },
+      });
+      hasPurchased = !!transaction;
     }
 
-    return NextResponse.json(content);
+    // Formater la réponse
+    const response = {
+      id: content.id,
+      title: content.title,
+      type: content.type,
+      description: content.description,
+      thumbnail: content.thumbnail,
+      price: content.price,
+      genre: content.genre,
+      director: content.director,
+      year: content.year,
+      country: content.country,
+      language: content.language,
+      cast: content.cast,
+      isFeatured: content.isFeatured,
+      isNew: content.isNew,
+      createdAt: content.createdAt,
+      creator: content.creator,
+      hasPurchased,
+      // Informations spécifiques au type
+      ...(content.type === "FILM" && {
+        film: {
+          duration: content.film?.duration,
+          // N'inclure le chemin vidéo que si l'utilisateur a acheté le contenu
+          // ou si le contenu est gratuit
+          videoPath:
+            hasPurchased || !content.price ? content.film?.videoPath : null,
+        },
+      }),
+      ...(content.type === "SERIE" && {
+        serie: {
+          seasons: content.serie?.seasons.map((season) => ({
+            id: season.id,
+            number: season.number,
+            title: season.title,
+            episodes: season.episodes.map((episode) => ({
+              id: episode.id,
+              title: episode.title,
+              number: episode.number,
+              duration: episode.duration,
+              thumbnail: episode.thumbnail,
+              description: episode.description,
+              // N'inclure le chemin vidéo que si l'utilisateur a acheté le contenu
+              // ou si le contenu est gratuit
+              videoPath:
+                hasPurchased || !content.price ? episode.videoPath : null,
+            })),
+          })),
+        },
+      }),
+    };
+
+    console.log(`[API] GET /api/contents/${id} - Contenu trouvé`);
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Erreur lors de la récupération du contenu:", error);
+    console.error(`[API] GET /api/contents/${params.id} - Erreur:`, error);
     return NextResponse.json(
       { error: "Erreur lors de la récupération du contenu" },
       { status: 500 }

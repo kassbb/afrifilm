@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
-
-const prisma = new PrismaClient();
 
 // Middleware pour vérifier si l'utilisateur est un administrateur
 async function verifyAdminAccess() {

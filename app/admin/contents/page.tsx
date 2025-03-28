@@ -1,21 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Box,
+  Button,
   Flex,
   Heading,
   Spinner,
-  Text,
-  useColorModeValue,
-  Button,
   HStack,
-  Container,
+  Text,
 } from "@chakra-ui/react";
 import { FiPlus } from "react-icons/fi";
-
 import AdminContentsTable from "../../components/admin/AdminContentsTable";
 
 export default function AdminContentsPage() {
@@ -23,7 +20,7 @@ export default function AdminContentsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
 
-  // Rediriger si l'utilisateur n'est pas connecté ou n'est pas admin
+  // Vérification de l'authentification et des permissions
   useEffect(() => {
     if (status === "loading") return;
 
@@ -40,6 +37,11 @@ export default function AdminContentsPage() {
     setLoading(false);
   }, [session, status, router]);
 
+  // Redirection vers la page de création de contenu
+  const handleCreateContent = () => {
+    router.push("/admin/contents/create");
+  };
+
   if (loading) {
     return (
       <Flex justify="center" align="center" minH="100vh">
@@ -49,31 +51,32 @@ export default function AdminContentsPage() {
   }
 
   return (
-    <>
-      <Box p="4">
-        <Flex justify="space-between" align="center" mb={6}>
-          <Heading as="h1" color="white">
+    <Box p={4}>
+      <Flex
+        justify="space-between"
+        align={{ base: "flex-start", md: "center" }}
+        direction={{ base: "column", md: "row" }}
+        mb={6}
+        gap={4}
+      >
+        <Box>
+          <Heading as="h1" color="white" size="lg">
             Gestion des contenus
           </Heading>
+          <Text color="gray.400" mt={1}>
+            Gérez les films et séries de la plateforme
+          </Text>
+        </Box>
+        <Button
+          leftIcon={<FiPlus />}
+          colorScheme="blue"
+          onClick={handleCreateContent}
+        >
+          Ajouter un contenu
+        </Button>
+      </Flex>
 
-          <Button
-            leftIcon={<FiPlus />}
-            colorScheme="red"
-            size="sm"
-            onClick={() => router.push("/admin/contents/create")}
-          >
-            Ajouter un contenu
-          </Button>
-        </Flex>
-
-        <Text color="gray.400" mb={6}>
-          Gérez tous les films et séries de la plateforme. Vous pouvez approuver
-          ou rejeter les nouveaux contenus, modifier les informations existantes
-          ou supprimer des contenus.
-        </Text>
-
-        <AdminContentsTable />
-      </Box>
-    </>
+      <AdminContentsTable />
+    </Box>
   );
 }
