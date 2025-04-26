@@ -59,7 +59,24 @@ export default function LoginForm() {
           duration: 3000,
           isClosable: true,
         });
-        router.push("/");
+
+        // Rediriger vers la page appropriée en fonction du rôle
+        try {
+          const session = await fetch("/api/auth/session");
+          const sessionData = await session.json();
+
+          if (sessionData.user?.role === "CREATOR") {
+            router.push("/creator/dashboard");
+          } else if (sessionData.user?.role === "ADMIN") {
+            router.push("/admin/dashboard");
+          } else {
+            router.push("/dashboard");
+          }
+        } catch (error) {
+          console.error("Erreur lors de la récupération de la session:", error);
+          router.push("/dashboard"); // Fallback
+        }
+
         router.refresh(); // Force le rafraîchissement pour mettre à jour l'état d'authentification
       }
     } catch (error) {

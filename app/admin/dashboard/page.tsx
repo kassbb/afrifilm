@@ -103,7 +103,7 @@ export default function AdminDashboard() {
       }
 
       const data = await response.json();
-      console.log("Données du tableau de bord reçues:", data);
+   
 
       // Vérification des propriétés requises
       if (!data.users || !data.creators || !data.contents || !data.sales) {

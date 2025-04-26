@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
+import { getToken } from "next-auth/jwt";
 
 export const dynamic = "force-dynamic";
 
@@ -15,47 +16,106 @@ export async function POST(request: NextRequest) {
 
     // Vérifier les cookies pour le débogage
     const cookies = request.headers.get("cookie");
-    console.log(`[API] POST /api/payment/simulate - Cookies reçus:`, cookies);
-
-    const session = await getServerSession(authOptions);
     console.log(
-      "[API] POST /api/payment/simulate - Session:",
-      JSON.stringify({
-        exists: !!session,
-        userExists: !!session?.user,
-        user: session?.user
-          ? {
-              id: session.user.id,
-              email: session.user.email,
-              role: session.user.role,
-            }
-          : null,
-      })
+      `[API] POST /api/payment/simulate - Cookies reçus:`,
+      cookies ? "Présents" : "Absents"
     );
 
-    if (!session || !session.user) {
-      console.log("[API] POST /api/payment/simulate - Non authentifié");
+    // 1. Essayer de récupérer la session via getServerSession
+    let session;
+    let userId = null;
+
+    try {
+      session = await getServerSession(authOptions);
+      if (session?.user?.id) {
+        userId = session.user.id;
+        console.log(
+          "[API] Session trouvée via getServerSession:",
+          session.user.email
+        );
+      } else {
+        console.log("[API] Pas de session via getServerSession");
+      }
+    } catch (sessionError) {
+      console.log("[API] Erreur getServerSession:", sessionError);
+    }
+
+    // 2. Si pas de session, essayer de récupérer le token JWT directement
+    if (!userId) {
+      try {
+        const token = await getToken({
+          req: request,
+          secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
+        });
+
+        if (token?.sub) {
+          userId = token.sub;
+          console.log(
+            "[API] Session récupérée via JWT token pour:",
+            token.email
+          );
+        } else {
+          console.log("[API] Pas de token JWT valide trouvé");
+        }
+      } catch (tokenError) {
+        console.log("[API] Erreur récupération token JWT:", tokenError);
+      }
+    }
+
+    // 3. Vérifier l'authentification
+    if (!userId) {
+      console.log(
+        "[API] Échec authentification, aucune méthode n'a fonctionné"
+      );
       return NextResponse.json(
         {
           error: "Non authentifié. Veuillez vous connecter à nouveau.",
           sessionInfo: {
-            exists: !!session,
-            userExists: !!session?.user,
             cookiesPresent: !!cookies,
+            sessionFound: !!session,
+            userFound: !!session?.user,
           },
         },
         {
           status: 401,
           headers: {
-            "Cache-Control": "no-store, max-age=0, must-revalidate",
+            "Cache-Control":
+              "no-store, no-cache, must-revalidate, proxy-revalidate",
             Pragma: "no-cache",
+            Expires: "0",
           },
         }
       );
     }
 
-    const userId = session.user.id;
+    // 4. À ce stade nous avons un userId valide, vérifier qu'il existe toujours
     console.log("[API] POST /api/payment/simulate - UserID:", userId);
+
+    const userExists = await prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: { id: true },
+    });
+
+    if (!userExists) {
+      console.log(
+        "[API] Utilisateur non trouvé dans la base de données:",
+        userId
+      );
+      return NextResponse.json(
+        { error: "Compte utilisateur non trouvé. Veuillez vous reconnecter." },
+        {
+          status: 401,
+          headers: {
+            "Cache-Control":
+              "no-store, no-cache, must-revalidate, proxy-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
+          },
+        }
+      );
+    }
 
     const body = await request.json();
     const {
@@ -77,7 +137,7 @@ export async function POST(request: NextRequest) {
       where: {
         id: transactionId,
         userId,
-        isPaid: false, // Uniquement les transactions non payées
+        // Ne pas filtrer sur isPaid car c'est true par défaut
       },
       include: {
         content: {
@@ -89,11 +149,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (!transaction) {
-      console.log(
-        "[API] POST /api/payment/simulate - Transaction non trouvée ou déjà payée"
-      );
+      console.log("[API] POST /api/payment/simulate - Transaction non trouvée");
       return NextResponse.json(
-        { error: "Transaction non trouvée ou déjà payée" },
+        { error: "Transaction non trouvée" },
         { status: 404 }
       );
     }
@@ -141,18 +199,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Générer un numéro de référence
-    const newReferenceNumber = generateReferenceNumber();
-
-    // Mettre à jour la transaction comme payée
+    // Mettre à jour la transaction (pas besoin de changer isPaid car c'est déjà true par défaut)
     const updatedTransaction = await prisma.transaction.update({
       where: { id: transactionId },
       data: {
-        isPaid: true,
         paymentMethod: "ORANGE_MONEY",
-        referenceNumber: newReferenceNumber,
-      } as any, // Utiliser type assertion pour éviter l'erreur TypeScript
+      },
     });
+
+    // Générer un numéro de référence pour la réponse mais pas pour la DB
+    const newReferenceNumber = generateReferenceNumber();
 
     console.log(
       `[API] POST /api/payment/simulate - Paiement réussi pour la transaction ${transactionId}`
@@ -168,7 +224,7 @@ export async function POST(request: NextRequest) {
         createdAt: updatedTransaction.createdAt,
         contentTitle: transaction.content.title,
       },
-      referenceNumber: newReferenceNumber,
+      referenceNumber: newReferenceNumber, // Inclus dans la réponse mais pas stocké en BDD
     });
   } catch (error) {
     console.error("[API] POST /api/payment/simulate - Erreur:", error);

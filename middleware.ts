@@ -1,11 +1,26 @@
 import { NextResponse } from "next/server";
-import { withAuth } from "next-auth/middleware";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
 
-export default withAuth(
-  async function middleware(req: NextRequest) {
-    const token = await getToken({ req, secret: process.env.JWT_SECRET });
+// Middleware sans utiliser withAuth pour éviter les conflits
+export async function middleware(req: NextRequest) {
+  try {
+    // Vérification manuelle du token avec options élargies
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+      cookieName: "next-auth.session-token",
+      secureCookie: false, // Important pour le développement local
+    });
+
+    // Log détaillé
+    console.log("[Middleware] Vérification token:", {
+      exists: !!token,
+      role: token?.role,
+      path: req.nextUrl.pathname,
+      cookies: req.cookies.getAll().map((c) => c.name),
+    });
+
     const isAuthenticated = !!token;
 
     // Routes protégées qui nécessitent une authentification
@@ -18,17 +33,27 @@ export default withAuth(
     const isLoginPage = req.nextUrl.pathname.startsWith("/auth/login");
     const isRegisterPage = req.nextUrl.pathname.startsWith("/auth/register");
 
-    // API endpoints de vérification d'authentification
-    const isAuthVerifyEndpoint = req.nextUrl.pathname === "/api/auth/verify";
-    const isAuthSessionEndpoint = req.nextUrl.pathname === "/api/auth/session";
-
-    // Pour les pages d'authentification, rediriger vers le dashboard si l'utilisateur est déjà connecté
+    // Pour les pages d'authentification, rediriger si déjà connecté
     if ((isLoginPage || isRegisterPage) && isAuthenticated) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      console.log("[Middleware] Utilisateur déjà connecté, redirection:", {
+        role: token?.role,
+      });
+
+      // Rediriger vers le dashboard approprié selon le rôle
+      if (token?.role === "CREATOR") {
+        return NextResponse.redirect(new URL("/creator/dashboard", req.url));
+      } else if (token?.role === "ADMIN") {
+        return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      } else {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
     }
 
-    // Pour les routes protégées, rediriger vers la page de connexion si l'utilisateur n'est pas connecté
+    // Pour les routes protégées, rediriger vers la page de connexion si non connecté
     if (isAuthRoute && !isAuthenticated) {
+      console.log(
+        "[Middleware] Utilisateur non connecté, redirection vers login"
+      );
       return NextResponse.redirect(
         new URL(
           `/auth/login?callbackUrl=${encodeURIComponent(req.url)}`,
@@ -37,47 +62,36 @@ export default withAuth(
       );
     }
 
-    // Ajouter des en-têtes pour empêcher la mise en cache des endpoints d'authentification
-    if (isAuthVerifyEndpoint || isAuthSessionEndpoint) {
-      const response = NextResponse.next();
-      response.headers.set(
-        "Cache-Control",
-        "no-store, max-age=0, must-revalidate"
-      );
-      response.headers.set("Pragma", "no-cache");
-      response.headers.set("Expires", "0");
-      return response;
+    // Vérification des accès selon le rôle
+    const isCreatorRoute = req.nextUrl.pathname.startsWith("/creator");
+    const isAdminRoute = req.nextUrl.pathname.startsWith("/admin");
+
+    if (isAuthenticated) {
+      if (isCreatorRoute && token?.role !== "CREATOR") {
+        console.log("[Middleware] Accès refusé - route créateur");
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+
+      if (isAdminRoute && token?.role !== "ADMIN") {
+        console.log("[Middleware] Accès refusé - route admin");
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
     }
 
     return NextResponse.next();
-  },
-  {
-    callbacks: {
-      // Autoriser l'accès à l'API d'authentification sans authentification
-      authorized: ({ req, token }) => {
-        if (
-          req.nextUrl.pathname.startsWith("/api/auth") ||
-          req.nextUrl.pathname.startsWith("/auth") ||
-          (!req.nextUrl.pathname.startsWith("/dashboard") &&
-            !req.nextUrl.pathname.startsWith("/profile") &&
-            !req.nextUrl.pathname.startsWith("/creator"))
-        ) {
-          return true;
-        }
-        return !!token;
-      },
-    },
+  } catch (error) {
+    console.error("[Middleware] Erreur:", error);
+    return NextResponse.next();
   }
-);
+}
 
-// Configuration du middleware - définir les chemins où le middleware sera appliqué
+// Configuration du middleware
 export const config = {
   matcher: [
     "/dashboard/:path*",
     "/profile/:path*",
     "/creator/:path*",
+    "/admin/:path*",
     "/auth/:path*",
-    "/api/auth/verify",
-    "/api/auth/session",
   ],
 };

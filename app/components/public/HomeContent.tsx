@@ -29,7 +29,8 @@ export default function HomeContent() {
   const [loadingFeatured, setLoadingFeatured] = useState(true);
   const [loadingNew, setLoadingNew] = useState(true);
   const [loadingFree, setLoadingFree] = useState(true);
-  const [activeTab, setActiveTab] = useState("all");
+  const [newContentTab, setNewContentTab] = useState("all");
+  const [freeContentTab, setFreeContentTab] = useState("all");
 
   const bgColor = useColorModeValue("gray.900", "gray.900");
   const headingColor = useColorModeValue("white", "white");
@@ -38,16 +39,24 @@ export default function HomeContent() {
   useEffect(() => {
     const fetchFeaturedContent = async () => {
       try {
-        const response = await fetch(
-          "/api/public/contents?featured=true&limit=4"
-        );
+        const response = await fetch("/api/contents?featured=true&limit=4");
         const data = await response.json();
-        setFeaturedContent(data.contents || []);
+        if (data && data.contents && Array.isArray(data.contents)) {
+          
+          setFeaturedContent(data.contents);
+        } else {
+          console.error(
+            "Format de réponse API incorrect pour les contenus en vedette:",
+            data
+          );
+          setFeaturedContent([]);
+        }
       } catch (error) {
         console.error(
           "Erreur lors du chargement des contenus en vedette:",
           error
         );
+        setFeaturedContent([]);
       } finally {
         setLoadingFeatured(false);
       }
@@ -56,15 +65,26 @@ export default function HomeContent() {
     const fetchNewContent = async () => {
       try {
         // On utilise le tri par date de création pour obtenir les contenus les plus récents
-        const response = await fetch("/api/public/contents?limit=8");
+        const response = await fetch("/api/contents?limit=8");
         const data = await response.json();
-        // Filtrer pour ne garder que les nouveautés
-        const newContentItems = data.contents.filter(
-          (content: any) => content.isNew
-        );
-        setNewContent(newContentItems.slice(0, 8));
+        // Vérifier que data.contents existe avant de filtrer
+        if (data && data.contents && Array.isArray(data.contents)) {
+          // Filtrer pour ne garder que les nouveautés
+          const newContentItems = data.contents.filter(
+            (content: any) => content.isNew
+          );
+          
+          setNewContent(newContentItems.slice(0, 8));
+        } else {
+          console.error(
+            "Format de réponse API incorrect pour les nouveautés:",
+            data
+          );
+          setNewContent([]);
+        }
       } catch (error) {
         console.error("Erreur lors du chargement des nouveautés:", error);
+        setNewContent([]);
       } finally {
         setLoadingNew(false);
       }
@@ -73,18 +93,29 @@ export default function HomeContent() {
     const fetchFreeContent = async () => {
       try {
         // On récupère les contenus gratuits
-        const response = await fetch("/api/public/contents?limit=8");
+        const response = await fetch("/api/contents?limit=8&price=0");
         const data = await response.json();
-        // Filtrer pour ne garder que les contenus gratuits
-        const freeContentItems = data.contents.filter(
-          (content: any) => !content.isPremium
-        );
-        setFreeContent(freeContentItems.slice(0, 8));
+        // Vérifier que data.contents existe avant de filtrer
+        if (data && data.contents && Array.isArray(data.contents)) {
+          // Filtrer pour ne garder que les contenus réellement gratuits
+          const freeContentItems = data.contents.filter(
+            (content: any) => content.price === 0 || content.price === null
+          );
+         
+          setFreeContent(freeContentItems.slice(0, 8));
+        } else {
+          console.error(
+            "Format de réponse API incorrect pour les contenus gratuits:",
+            data
+          );
+          setFreeContent([]);
+        }
       } catch (error) {
         console.error(
           "Erreur lors du chargement des contenus gratuits:",
           error
         );
+        setFreeContent([]);
       } finally {
         setLoadingFree(false);
       }
@@ -97,6 +128,7 @@ export default function HomeContent() {
 
   // Filtrer les contenus en fonction de l'onglet actif
   const filterContentByType = (contents: any[], type: string) => {
+    if (!contents || !Array.isArray(contents)) return [];
     if (type === "all") return contents;
     return contents.filter((content) =>
       type === "films" ? content.type === "FILM" : content.type === "SERIE"
@@ -104,8 +136,8 @@ export default function HomeContent() {
   };
 
   // Contenus filtrés en fonction de l'onglet actif
-  const filteredNewContent = filterContentByType(newContent, activeTab);
-  const filteredFreeContent = filterContentByType(freeContent, activeTab);
+  const filteredNewContent = filterContentByType(newContent, newContentTab);
+  const filteredFreeContent = filterContentByType(freeContent, freeContentTab);
 
   const renderContentGrid = (
     contents: any[],
@@ -120,10 +152,15 @@ export default function HomeContent() {
       );
     }
 
-    if (contents.length === 0) {
+    if (!contents || contents.length === 0) {
       return (
         <Center py={10}>
-          <Text color="gray.400">{emptyMessage}</Text>
+          <VStack>
+            <Text color="gray.400">{emptyMessage}</Text>
+            <Text color="red.400" fontSize="sm">
+              Aucun contenu disponible
+            </Text>
+          </VStack>
         </Center>
       );
     }
@@ -135,16 +172,22 @@ export default function HomeContent() {
             key={content.id}
             id={content.id}
             title={content.title}
-            imagePath={content.imagePath}
+            imagePath={content.thumbnail || content.imagePath}
             type={content.type}
-            releaseYear={content.releaseYear}
-            duration={content.duration}
-            price={content.price}
-            isPremium={content.isPremium}
+            releaseYear={content.year || content.releaseYear}
+            duration={content.duration || 0}
+            price={content.price || 0}
+            isPremium={content.isPremium || content.price > 0}
             isNew={content.isNew}
-            categories={content.categories}
-            seasonsCount={content.seasonsCount}
-            episodesCount={content.episodesCount}
+            categories={
+              content.categories || [
+                { id: "1", name: content.genre || "Non catégorisé" },
+              ]
+            }
+            seasonsCount={content.seasons?.length || content.seasonsCount || 0}
+            episodesCount={
+              content.episodes?.length || content.episodesCount || 0
+            }
           />
         ))}
       </SimpleGrid>
@@ -186,7 +229,8 @@ export default function HomeContent() {
                 colorScheme="brand"
                 onChange={(index) => {
                   const types = ["all", "films", "series"];
-                  setActiveTab(types[index]);
+                  const newTab = types[index];
+                  setNewContentTab(newTab);
                 }}
                 size="sm"
               >
@@ -243,7 +287,8 @@ export default function HomeContent() {
                 colorScheme="brand"
                 onChange={(index) => {
                   const types = ["all", "films", "series"];
-                  setActiveTab(types[index]);
+                  const newTab = types[index];
+                  setFreeContentTab(newTab);
                 }}
                 size="sm"
               >

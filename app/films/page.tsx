@@ -74,7 +74,7 @@ export default function FilmsPage() {
         }
 
         const apiUrl = `/api/contents?${params.toString()}`;
-        console.log("Appel API:", apiUrl);
+     
 
         // Appeler l'API
         const response = await fetch(apiUrl);
@@ -88,7 +88,7 @@ export default function FilmsPage() {
         }
 
         const data = await response.json();
-        console.log("Données reçues:", data);
+       
 
         setFilms(data.contents || []);
         setTotalItems(data.pagination?.totalCount || 0);

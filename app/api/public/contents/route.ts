@@ -112,10 +112,16 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
+    console.log(
+      `[API] /api/public/contents - Contenus trouvés: ${contents.length}`
+    );
+
     // Récupération du nombre total d'éléments pour la pagination
     const totalCount = await prisma.content.count({
       where: filters,
     });
+
+    console.log(`[API] Nombre total de contenus: ${totalCount}`);
 
     // Transformation des données pour l'API publique
     const transformedContents = contents.map((content) => {

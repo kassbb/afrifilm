@@ -1,9 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
 
 // Étendre les types NextAuth pour inclure l'ID, le rôle et le statut de vérification
 declare module "next-auth" {
@@ -40,12 +38,15 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email et mot de passe requis");
         }
 
+        console.log("[Auth] Tentative de connexion pour:", credentials.email);
+
         // Rechercher l'utilisateur par email
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
 
         if (!user) {
+          console.log("[Auth] Utilisateur non trouvé:", credentials.email);
           throw new Error("Email ou mot de passe incorrect");
         }
 
@@ -56,11 +57,13 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!passwordMatch) {
+          console.log("[Auth] Mot de passe incorrect pour:", credentials.email);
           throw new Error("Email ou mot de passe incorrect");
         }
 
         // Vérifier si un compte CREATOR est vérifié
         if (user.role === "CREATOR" && user.isVerified === false) {
+          console.log("[Auth] Compte créateur non vérifié:", credentials.email);
           throw new Error(
             "Votre compte créateur est en attente de vérification par un administrateur"
           );
@@ -70,6 +73,12 @@ export const authOptions: NextAuthOptions = {
         await prisma.user.update({
           where: { id: user.id },
           data: { lastLogin: new Date() },
+        });
+
+        console.log("[Auth] Connexion réussie pour:", {
+          email: credentials.email,
+          role: user.role,
+          isVerified: user.isVerified,
         });
 
         return {
@@ -83,6 +92,11 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
+      console.log("[Auth] Callback JWT:", {
+        hasUser: !!user,
+        tokenRole: token.role,
+        userRole: user?.role,
+      });
       if (user) {
         token.id = user.id;
         token.role = user.role;
@@ -91,6 +105,11 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      console.log("[Auth] Callback Session:", {
+        hasToken: !!token,
+        tokenRole: token.role,
+        sessionUserRole: session.user?.role,
+      });
       if (token) {
         session.user.id = token.id;
         session.user.role = token.role;
@@ -105,10 +124,39 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 jours
+    maxAge: 2 * 60 * 60, // Session durée: 2 heures (en secondes)
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 2 * 60 * 60, // Durée cookie: 2 heures (en secondes)
+      },
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    csrfToken: {
+      name: "next-auth.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
 };
 
 const handler = NextAuth(authOptions);

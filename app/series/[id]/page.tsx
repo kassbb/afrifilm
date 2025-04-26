@@ -13,7 +13,6 @@ export default function SerieDetailPage() {
 
   return (
     <Box bg={bgColor} minH="100vh">
-      <Navbar />
       <Box pt="70px">
         <ContentDetail contentId={serieId} />
       </Box>

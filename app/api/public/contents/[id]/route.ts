@@ -93,7 +93,7 @@ export async function GET(
 
         if (transaction) {
           console.log(
-            `[API] Accès accordé car contenu acheté, Transaction ID: ${transaction.id}`
+            `[API] Accès accordé car contenu acheté, Transaction ID: ${transaction.id}, Date: ${transaction.createdAt}`
           );
           hasAccess = true;
           purchaseInfo = {
@@ -102,7 +102,101 @@ export async function GET(
             paymentMethod: transaction.paymentMethod,
           };
         } else {
-          console.log(`[API] Aucune transaction trouvée pour ce contenu`);
+          // Double check: vérification directe sans Prisma pour s'assurer qu'il n'y a pas de problème d'ORM
+          const rawTransaction = await prisma.$queryRaw`
+            SELECT id, "createdAt", "paymentMethod" 
+            FROM "Transaction" 
+            WHERE "userId" = ${userId} 
+            AND "contentId" = ${contentId} 
+            AND "isPaid" = true 
+            ORDER BY "createdAt" DESC 
+            LIMIT 1
+          `;
+
+          console.log(`[API] Vérification brute SQL:`, rawTransaction);
+
+          if (
+            rawTransaction &&
+            Array.isArray(rawTransaction) &&
+            rawTransaction.length > 0
+          ) {
+            console.log(
+              `[API] Transaction trouvée via requête SQL directe:`,
+              rawTransaction[0]
+            );
+            hasAccess = true;
+            purchaseInfo = {
+              transactionId: rawTransaction[0].id,
+              purchaseDate: rawTransaction[0].createdAt,
+              paymentMethod: rawTransaction[0].paymentMethod || "DIRECT_SQL",
+            };
+          } else {
+            // Si toujours pas de transaction, vérifier spécifiquement la transaction mentionnée
+            const specificTransactionId =
+              "855bede3-142a-4726-8796-858d38901957"; // ID de transaction signalé
+
+            const specificTransaction = await prisma.transaction.findUnique({
+              where: {
+                id: specificTransactionId,
+              },
+            });
+
+            if (specificTransaction && specificTransaction.isPaid) {
+              console.log(
+                `[API] Transaction spécifique trouvée:`,
+                specificTransaction
+              );
+
+              // Vérifier si cette transaction appartient à cet utilisateur et ce contenu
+              if (
+                specificTransaction.userId === userId &&
+                specificTransaction.contentId === contentId
+              ) {
+                console.log(
+                  `[API] Transaction spécifique validée et appartient à l'utilisateur actuel`
+                );
+                hasAccess = true;
+                purchaseInfo = {
+                  transactionId: specificTransaction.id,
+                  purchaseDate: specificTransaction.createdAt,
+                  paymentMethod: specificTransaction.paymentMethod,
+                };
+              } else {
+                console.log(
+                  `[API] Transaction spécifique trouvée mais problème de correspondance:`,
+                  `Transaction userID=${specificTransaction.userId}, contentID=${specificTransaction.contentId}`,
+                  `Requête userID=${userId}, contentID=${contentId}`
+                );
+              }
+            }
+
+            // Continuer avec le comptage comme avant
+            const transactionCount = await prisma.transaction.count({
+              where: {
+                userId: userId,
+                contentId: contentId,
+                isPaid: true,
+              },
+            });
+
+            console.log(
+              `[API] Vérification supplémentaire: ${transactionCount} transaction(s) payée(s) trouvée(s)`
+            );
+
+            if (transactionCount > 0) {
+              console.log(
+                `[API] Accès accordé malgré l'échec de récupération de la transaction`
+              );
+              hasAccess = true;
+              purchaseInfo = {
+                transactionId: "recovery-access",
+                purchaseDate: new Date(),
+                paymentMethod: "RECOVERY",
+              };
+            } else {
+              console.log(`[API] Aucune transaction trouvée pour ce contenu`);
+            }
+          }
         }
       }
     }

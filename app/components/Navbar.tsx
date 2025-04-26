@@ -94,7 +94,7 @@ export default function Navbar() {
           <HStack>
             {status === "loading" ? (
               <Text color="gray.400">Chargement...</Text>
-            ) : session ? (
+            ) : status === "authenticated" && session?.user ? (
               <>
                 <Box
                   w="10px"
@@ -116,12 +116,18 @@ export default function Navbar() {
                     <HStack>
                       <Avatar
                         size="sm"
-                        name={session.user.name || session.user.email}
-                        src={session.user.image || undefined}
+                        name={
+                          session?.user?.name ||
+                          session?.user?.email ||
+                          "Utilisateur"
+                        }
+                        src={session?.user?.image || undefined}
                       />
                       <Box display={{ base: "none", md: "block" }}>
                         <Text fontWeight="medium">
-                          {session.user.name || session.user.email}
+                          {session?.user?.name ||
+                            session?.user?.email ||
+                            "Utilisateur"}
                         </Text>
                       </Box>
                     </HStack>
@@ -142,14 +148,14 @@ export default function Navbar() {
                         Favoris
                       </MenuItem>
                     </Link>
-                    {session.user.role === "CREATOR" && (
+                    {session?.user?.role === "CREATOR" && (
                       <Link href="/creator/dashboard" passHref>
                         <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }}>
                           Espace créateur
                         </MenuItem>
                       </Link>
                     )}
-                    {session.user.role === "ADMIN" && (
+                    {session?.user?.role === "ADMIN" && (
                       <Link href="/admin/dashboard" passHref>
                         <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }}>
                           Administration
@@ -178,7 +184,7 @@ export default function Navbar() {
                   title={`Session: ${status}`}
                 />
                 <Link href="/auth/login" passHref>
-                  <Button colorScheme="red" variant="solid">
+                  <Button colorScheme="red" variant="solid" size="md">
                     Connexion
                   </Button>
                 </Link>

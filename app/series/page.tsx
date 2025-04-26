@@ -73,7 +73,7 @@ export default function SeriesPage() {
         }
 
         const apiUrl = `/api/contents?${params.toString()}`;
-        console.log("Appel API:", apiUrl);
+       
 
         // Appeler l'API
         const response = await fetch(apiUrl);
@@ -87,7 +87,7 @@ export default function SeriesPage() {
         }
 
         const data = await response.json();
-        console.log("Données reçues:", data);
+      
 
         setSeries(data.contents || []);
         setTotalItems(data.pagination?.totalCount || 0);
